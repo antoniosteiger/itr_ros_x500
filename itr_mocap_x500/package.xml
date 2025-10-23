@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>itr_mocap_x500</name>
+  <version>0.0.1</version>
+  <description>ITR Qualisys Motion Capture Republishing to ROS conform to PX4</description>
+  <maintainer email="antonio.steiger@tum.de">Antonio Steiger</maintainer>
+  <license>Apache 2.0</license>
+
+  <depend>px4_msgs</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

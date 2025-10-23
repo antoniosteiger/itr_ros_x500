@@ -1,0 +1,5 @@
+/fmu/vehicle_status
+/fmu/sensor_battery
+/fmu/vehicle_local_position
+/fmu/vehicle_odometry
+/fmu/vehicle_command

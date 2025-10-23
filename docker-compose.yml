@@ -1,0 +1,111 @@
+# Docker Compose file for ITR x500v2 Drone Control & Sim
+# Based on: https://github.com/sea-bass/turtlebot3_behavior_demos/blob/main/docker-compose.yaml
+#
+# Usage:
+#
+# To build the images:
+#   docker compose build
+#
+# To start up a specific service by name:
+#   docker compose up <service_name>
+#
+# To open an interactive shell to a running container:
+#   docker exec -it <container_name> bash
+
+services:
+  # Base Image with ROS2, PX4 and uXRCE DDS Agent
+  # Heavy build processes from source
+  base:
+    image: itr_x500:base
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        ROS_DISTRO: ${ROS_DISTRO:?}
+        PX4_VERSION: ${PX4_VERSION:?}
+      target: base
+    # Interactive shell
+    stdin_open: true
+    tty: true
+    # Networking and IPC for ROS 2
+    network_mode: host
+    ipc: host
+    # Needed to display graphical applications
+    privileged: True
+    environment:
+      # Allows graphical programs in the container.
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    volumes:
+      # Allows graphical programs in the container.
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${XAUTHORITY:-$HOME/.Xauthority}:/root/.Xauthority
+
+
+  # Overlay image containing main source code
+  # itr_mission_x500, itr_controller_x500, itr_statemachine_x500
+  overlay:
+    extends: base
+    image: itr_x500:overlay
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: overlay
+
+  # Development container
+  dev:
+    extends: overlay
+    image: itr_x500:dev
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: dev
+      # args:
+      #   - UID=${UID:-1000}
+      #   - GID=${UID:-1000}
+      #   - USERNAME=${USERNAME:-devuser}
+    volumes:
+      # Mount workspace sourcecode
+      # Utilities:
+      - ./itr_sim_x500:/itr_ros_x500/src/itr_sim_x500:rw
+      - ./itr_mocap_x500:/itr_ros_x500/src/itr_mocap_x500:rw
+      - ./itr_description_x500:/itr_ros_x500/src/itr_description_x500:rw
+      - ./itr_px4_x500:/itr_ros_x500/src/itr_px4_x500:rw
+      # Main Packages:
+      - ./itr_controller_x500:/itr_ros_x500/src/itr_controller_x500:rw
+      - ./itr_statemachine_x500:/itr_ros_x500/src/itr_statemachine_x500:rw
+      - ./itr_mission_x500:/itr_ros_x500/src/itr_mission_x500:rw
+      # Mount colcon build artifacts for faster rebuilds
+      - ./.colcon/build/:/itr_ros_x500/build/:rw
+      - ./.colcon/install/:/itr_ros_x500/install/:rw
+      - ./.colcon/log/:/itr_ros_x500/log/:rw
+    # user: ${USERNAME:-devuser}
+    command: sleep infinity
+
+  # Launch the World
+  # Launches Gazebo with ROS bridge
+  itr-world:
+    extends: overlay
+    command: ros2 launch itr_sim_x500 simulation.launch.py
+
+  # Launch PX4 with ROS bridge
+  itr_px4:
+    extends: overlay
+    command: ros2 launch itr_px4_x500 px4.launch.py
+
+  # Simulate Control System and Drone
+  itr-sim:
+    extends: overlay
+    command: >
+      ros2 launch itr_mission_x500 mission.launch.py
+      controller:=${ITR_CONTROLLER:?}
+      logging:=${ITR_LOGGING:?}
+  
+  # Deploy Control System on Real Drone and Fly
+  itr-real:
+    extends: overlay
+    command: >
+      ros2 launch itr_mission_x500 mission.deploy.py
+      controller:=${ITR_CONTROLLER:?}
+      logging:=${ITR_LOGGING:?}

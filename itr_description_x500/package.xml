@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>itr_description_x500</name>
+  <version>0.0.1</version>
+  <description>ITR Description for Holybro x500 Drone Geometry, Sensors, Rotors</description>
+  <maintainer email="antonio.steiger@tum.de">Antonio Steiger</maintainer>
+  <license>Apache 2.0</license>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
