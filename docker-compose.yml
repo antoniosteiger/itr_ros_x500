@@ -99,13 +99,13 @@ services:
     extends: overlay
     command: >
       ros2 launch itr_mission_x500 mission.launch.py
-      controller:=${ITR_CONTROLLER:?}
-      logging:=${ITR_LOGGING:?}
+      controller:=${ITR_CONTROLLER}
+      logging:=${ITR_LOGGING}
   
   # Deploy Control System on Real Drone and Fly
   itr-real:
     extends: overlay
     command: >
       ros2 launch itr_mission_x500 mission.deploy.py
-      controller:=${ITR_CONTROLLER:?}
-      logging:=${ITR_LOGGING:?}
+      controller:=${ITR_CONTROLLER}
+      logging:=${ITR_LOGGING}
