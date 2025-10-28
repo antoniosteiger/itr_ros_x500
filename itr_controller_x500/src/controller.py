@@ -1,1 +1,0 @@
-# px4 measurement ros topics in and actuator commands out

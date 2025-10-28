@@ -38,6 +38,16 @@ Now you can start a ROS2 based controller that uses px4_msgs nessage definitions
 ### Real Deployment:
 TBD.
 
+## How to Develop:
+The "dev" container image can be used to develop ROS2 applications in a containerized context. It copies over the contents of this repository in their current state. This allows running ROS2 commands and applications on non-Ubuntu machines, e.g.\
+First, start the container in detached mode:
+
+`docker compose up -d dev`
+
+Then attach a shell and start developing:
+
+`docker compose exec -it dev bash`
+
 ## Repository Structure:
 - itr_controller_x500: ROS2 workspace for actual drone controller implementations (e.g. trajectory tracking)
 - itr_statemachine_x500: ROS2 workspace for State machine for the drone (arm/disarm, takeoff, control, return to home, landing, failsafes, ...)

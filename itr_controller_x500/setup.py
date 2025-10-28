@@ -28,6 +28,7 @@ setup(
     # scripts here.
     entry_points={
         'console_scripts': [
+            'itr_controller_x500 = itr_controller_x500.controller:main',
         ],
     },
 )
