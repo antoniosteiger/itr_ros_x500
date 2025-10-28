@@ -115,7 +115,7 @@ services:
     command: ["-c", "MicroXRCEAgent udp4 -p 8888"]
 
   ## Start Control Layer
-  itr-control:
+  itr-gcs:
     extends: gcs
     command: ./usr/local/bin/QGroundControl.AppImage
     # ros2 launch itr_mission_x500 mission.launch.py
