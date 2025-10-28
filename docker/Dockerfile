@@ -43,16 +43,14 @@ RUN git clone -b v2.4.3 https://github.com/eProsima/Micro-XRCE-DDS-Agent.git \
  && cmake .. && make && make install \
  && ldconfig
 
+# Get the PX4-models repository which has the gazebo launch helper
+RUN git clone https://github.com/PX4/PX4-gazebo-models.git
+
 # Remove display warnings
 RUN mkdir /tmp/runtime-root
 ENV XDG_RUNTIME_DIR "/tmp/runtime-root"
 RUN chmod -R 0700 /tmp/runtime-root
 ENV NO_AT_BRIDGE 1
-
-# Set up the entrypoint
-COPY ./docker/entrypoint.sh /
-RUN chmod +rx /entrypoint.sh
-ENTRYPOINT [ "/entrypoint.sh" ]
 
 
 #############
@@ -106,10 +104,6 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
  && rosdep install --from-paths src --ignore-src --rosdistro ${ROS_DISTRO} -y \
  && colcon build --symlink-install
 
-# Set up the entrypoint
-# COPY ./docker/entrypoint.sh /
-# ENTRYPOINT [ "/entrypoint.sh" ]
-
 ##################################################
 # DEV IMAGE with source code sync from host disk #
 ##################################################
@@ -125,3 +119,8 @@ COPY ./itr_px4_x500/ ./src/itr_px4_x500/
 COPY ./itr_controller_x500/ ./src/itr_controller_x500/
 COPY ./itr_statemachine_x500/ ./src/itr_statemachine_x500/
 COPY ./itr_mission_x500/ ./src/itr_mission_x500/
+
+# Set up the entrypoint
+COPY ./docker/entrypoint.sh /
+RUN chmod +rx /entrypoint.sh
+ENTRYPOINT [ "/entrypoint.sh" ]

@@ -101,24 +101,24 @@ services:
   # LAUNCH IMAGES
   # Start world, px4, simulation, deploy, ...
   ###########################################
-  ## Start World (Gazebo with ROS bridge)
-  itr-world:
-    extends: overlay
+  ## Start PX4 Flight Software with ROS bridge
+  itr-px4:
+    extends: base
     working_dir: /PX4-Autopilot
-    entrypoint: ["/bin/bash"] # fresh entrypoint
-    command: ["-c", "make px4_sitl gz_x500"]
+    entrypoint: ["/bin/bash"]
+    command: ["-c", "MicroXRCEAgent udp4 -p 8888 & PX4_GZ_STANDALONE=1 make px4_sitl gz_x500"]
 
-## Start ROS bridge for PX4  
-  itr-agent:
-    extends: overlay
-    entrypoint: ["/bin/bash"] # fresh entrypoint needed, default sources ros env and breaks agent
-    command: ["-c", "MicroXRCEAgent udp4 -p 8888"]
+  ## Start World (Gazebo Physics Sim GUI) with ROS bridge
+  itr-world:
+    extends: base
+    working_dir: /PX4-gazebo-models
+    entrypoint: ["/bin/bash"]
+    command: ["-c", "python3 simulation-gazebo"] # TODO: prepend appropriate ros-gz-bridge command
 
   ## Start Control Layer
   itr-gcs:
     extends: gcs
     command: ./usr/local/bin/QGroundControl.AppImage
-    # ros2 launch itr_mission_x500 mission.launch.py
   
   ## Deploy to Real Drone
   itr-real:
