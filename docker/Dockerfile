@@ -1,9 +1,9 @@
 # Dockerfile for base ROS docker image
 # Amended from: https://github.com/sea-bass/turtlebot3_behavior_demos/blob/main/docker/Dockerfile
 ARG ROS_DISTRO=jazzy
-#######################################
-# Base Image for Drone Simulation #
-#######################################
+###################################
+# BASE IMAGE for Drone Simulation #
+###################################
 FROM ros:${ROS_DISTRO} AS base
 ARG PX4_VERSION=1.16.0
 ENV ROS_DISTRO=${ROS_DISTRO}
@@ -51,27 +51,52 @@ ENV NO_AT_BRIDGE 1
 
 # Set up the entrypoint
 COPY ./docker/entrypoint.sh /
+RUN chmod +rx /entrypoint.sh
 ENTRYPOINT [ "/entrypoint.sh" ]
 
-###############################
-# Image for Utilities #
-###############################
+
+#############
+# GCS IMAGE #
+#############
+# Follows: https://docs.qgroundcontrol.com/Stable_V5.0/en/qgc-user-guide/getting_started/download_and_install.html
+# "apt-get install fuse" had to be added
+FROM base AS gcs
+ARG QGC_VERSION=5.0.8
+ENV QGC_VERSION=${QGC_VERSION}
+
+WORKDIR /
+
+# QGC can't be run as root
+RUN useradd -m -s /bin/bash qgcuser
+
+RUN usermod -a -G dialout qgcuser \
+ && apt-get remove -y modemmanager
+
+RUN apt-get install -y --no-install-recommends gstreamer1.0-plugins-bad gstreamer1.0-libav gstreamer1.0-gl \
+ fuse libfuse2 libxcb-xinerama0 libxkbcommon-x11-0 libxcb-cursor-dev
+
+RUN curl -fsSL -o /usr/local/bin/QGroundControl.AppImage \
+    https://github.com/mavlink/qgroundcontrol/releases/download/v${QGC_VERSION}/QGroundControl-x86_64.AppImage \
+ && chmod +x /usr/local/bin/QGroundControl.AppImage
+
+RUN chown -R qgcuser:qgcuser /usr/local/bin/QGroundControl.AppImage
+USER qgcuser
+
+
+###########################################
+# OVERLAY IMAGE with Source Code from Git #
+###########################################
 FROM base AS overlay
 
 # Create Colcon workspace with util dependencies
 RUN mkdir -p /itr_ros_x500/src
 WORKDIR /itr_ros_x500
 
-# Utility Packages:
-# At a later point these can be spun off into their own git repository to enable new projects
-COPY ./itr_sim_x500/ ./src/itr_sim_x500/
-COPY ./itr_mocap_x500/ ./src/itr_mocap_x500/
-COPY ./itr_description_x500/ ./src/itr_description_x500/
-COPY ./itr_px4_x500/ ./src/itr_px4_x500/
-# Main Packages:
-COPY ./itr_controller_x500/ ./src/itr_controller_x500/
-COPY ./itr_statemachine_x500/ ./src/itr_statemachine_x500/
-COPY ./itr_mission_x500/ ./src/itr_mission_x500/
+# Get Source Code:
+RUN git clone https://github.com/antoniosteiger/itr_ros_x500.git ./src \
+ && rm -rf ./src/docker \
+ && rm ./src/docker-compose.yml
+
 # Add px4_msgs package:
 RUN PX4_VER=$(echo "${PX4_VERSION}" | cut -d'.' -f1,2) \
  && git clone --branch release/${PX4_VER} https://github.com/PX4/px4_msgs.git ./src/px4_msgs
@@ -82,41 +107,21 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
  && colcon build --symlink-install
 
 # Set up the entrypoint
-COPY ./docker/entrypoint.sh /
-ENTRYPOINT [ "/entrypoint.sh" ]
+# COPY ./docker/entrypoint.sh /
+# ENTRYPOINT [ "/entrypoint.sh" ]
 
-#####################
-# Development Image #
-#####################
+##################################################
+# DEV IMAGE with source code sync from host disk #
+##################################################
 FROM overlay AS dev
 
-# Dev container arguments
-# ARG USERNAME=devuser
-# ARG UID=1000
-# ARG GID=${UID}
-
-# # Install extra tools for development
-# RUN apt-get update && apt-get install -y --no-install-recommends \
-#  gdb gdbserver nano
-
-# # In Ubuntu 24.04, there is already a user named "ubuntu" with UID 1000.
-# # Delete this in the (common) event that the user on the host also has this UID.
-# RUN touch /var/mail/ubuntu \
-#     && chown ubuntu /var/mail/ubuntu \
-#     && userdel -r ubuntu
-
-# # Create new user and home directory
-# RUN groupadd --gid $GID $USERNAME \
-#  && useradd --uid ${GID} --gid ${UID} --create-home ${USERNAME} \
-#  && echo ${USERNAME} ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/${USERNAME} \
-#  && chmod 0440 /etc/sudoers.d/${USERNAME} \
-#  && mkdir -p /home/${USERNAME} \
-#  && chown -R ${UID}:${GID} /home/${USERNAME}
-
-# # Set the ownership of the overlay workspace to the new user
-# RUN chown -R ${UID}:${GID} /itr_ros_x500/
-RUN chmod +rx /entrypoint.sh
-
-# # Set up the entrypoint, including it in the .bashrc for interactive shells
-# USER ${USERNAME}
-# RUN echo "source /entrypoint.sh" >> /home/${USERNAME}/.bashrc
+WORKDIR /itr_ros_x500
+# Utility Packages:
+COPY ./itr_sim_x500/ ./src/itr_sim_x500/
+COPY ./itr_mocap_x500/ ./src/itr_mocap_x500/
+COPY ./itr_description_x500/ ./src/itr_description_x500/
+COPY ./itr_px4_x500/ ./src/itr_px4_x500/
+# Main Packages:
+COPY ./itr_controller_x500/ ./src/itr_controller_x500/
+COPY ./itr_statemachine_x500/ ./src/itr_statemachine_x500/
+COPY ./itr_mission_x500/ ./src/itr_mission_x500/

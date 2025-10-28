@@ -13,16 +13,19 @@
 #   docker exec -it <container_name> bash
 
 services:
-  # Base Image with ROS2, PX4 and uXRCE DDS Agent
+  ###############################################
+  # BASE IMAGE
+  # ROS2, PX4 and uXRCE DDS Agent
   # Heavy build processes from source
+  ###############################################
   base:
     image: itr_x500:base
     build:
       context: .
       dockerfile: docker/Dockerfile
       args:
-        ROS_DISTRO: ${ROS_DISTRO:?}
-        PX4_VERSION: ${PX4_VERSION:?}
+        ROS_DISTRO: ${ROS_DISTRO}
+        PX4_VERSION: ${PX4_VERSION}
       target: base
     # Interactive shell
     stdin_open: true
@@ -43,8 +46,10 @@ services:
       - ${XAUTHORITY:-$HOME/.Xauthority}:/root/.Xauthority
 
 
-  # Overlay image containing main source code
-  # itr_mission_x500, itr_controller_x500, itr_statemachine_x500
+  ######################
+  # OVERLAY IMAGE
+  # Main ITR source code
+  ######################
   overlay:
     extends: base
     image: itr_x500:overlay
@@ -53,7 +58,10 @@ services:
       dockerfile: docker/Dockerfile
       target: overlay
 
-  # Development container
+  ######################
+  # DEV IMAGE
+  # Sync Source Code
+  ######################
   dev:
     extends: overlay
     image: itr_x500:dev
@@ -61,10 +69,6 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       target: dev
-      # args:
-      #   - UID=${UID:-1000}
-      #   - GID=${UID:-1000}
-      #   - USERNAME=${USERNAME:-devuser}
     volumes:
       # Mount workspace sourcecode
       # Utilities:
@@ -80,29 +84,43 @@ services:
       - ./.colcon/build/:/itr_ros_x500/build/:rw
       - ./.colcon/install/:/itr_ros_x500/install/:rw
       - ./.colcon/log/:/itr_ros_x500/log/:rw
-    # user: ${USERNAME:-devuser}
     command: sleep infinity
 
-  # Launch the World
-  # Launches Gazebo with ROS bridge
+  ##############################
+  # GROUND CONTROL STATION IMAGE
+  ##############################
+  gcs:
+    extends: base
+    image: itr_x500:gcs
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: gcs
+
+  ###########################################s
+  # LAUNCH IMAGES
+  # Start world, px4, simulation, deploy, ...
+  ###########################################
+  ## Start World (Gazebo with ROS bridge)
   itr-world:
     extends: overlay
-    command: ros2 launch itr_sim_x500 simulation.launch.py
+    working_dir: /PX4-Autopilot
+    entrypoint: ["/bin/bash"] # fresh entrypoint
+    command: ["-c", "make px4_sitl gz_x500"]
 
-  # Launch PX4 with ROS bridge
-  itr_px4:
+## Start ROS bridge for PX4  
+  itr-agent:
     extends: overlay
-    command: ros2 launch itr_px4_x500 px4.launch.py
+    entrypoint: ["/bin/bash"] # fresh entrypoint needed, default sources ros env and breaks agent
+    command: ["-c", "MicroXRCEAgent udp4 -p 8888"]
 
-  # Simulate Control System and Drone
-  itr-sim:
-    extends: overlay
-    command: >
-      ros2 launch itr_mission_x500 mission.launch.py
-      controller:=${ITR_CONTROLLER}
-      logging:=${ITR_LOGGING}
+  ## Start Control Layer
+  itr-control:
+    extends: gcs
+    command: ./usr/local/bin/QGroundControl.AppImage
+    # ros2 launch itr_mission_x500 mission.launch.py
   
-  # Deploy Control System on Real Drone and Fly
+  ## Deploy to Real Drone
   itr-real:
     extends: overlay
     command: >
