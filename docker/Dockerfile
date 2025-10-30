@@ -43,6 +43,9 @@ RUN git clone -b v2.4.3 https://github.com/eProsima/Micro-XRCE-DDS-Agent.git \
  && cmake .. && make && make install \
  && ldconfig
 
+# Install the gazebo<->ros bridge:
+RUN apt-get install -y --no-install-recommends ros-${ROS_DISTRO}-ros-gz-bridge
+
 # Get the PX4-models repository which has the gazebo launch helper
 RUN git clone https://github.com/PX4/PX4-gazebo-models.git
 

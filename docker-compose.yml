@@ -86,9 +86,8 @@ services:
       - ./.colcon/log/:/itr_ros_x500/log/:rw
     command: sleep infinity
 
-  ##############################
-  # GROUND CONTROL STATION IMAGE
-  ##############################
+
+  ## Ground Control Station
   gcs:
     extends: base
     image: itr_x500:gcs
@@ -96,34 +95,30 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       target: gcs
+    command: ./usr/local/bin/QGroundControl.AppImage
 
   ###########################################s
   # LAUNCH IMAGES
   # Start world, px4, simulation, deploy, ...
   ###########################################
   ## Start PX4 Flight Software with ROS bridge
-  itr-px4:
+  px4:
     extends: base
     working_dir: /PX4-Autopilot
     entrypoint: ["/bin/bash"]
-    command: ["-c", "MicroXRCEAgent udp4 -p 8888 & PX4_GZ_STANDALONE=1 make px4_sitl gz_x500"]
+    command: ["-c", "MicroXRCEAgent udp4 -p 8888 & PX4_GZ_STANDALONE=1 make px4_sitl gz_x500_vision"]
 
   ## Start World (Gazebo Physics Sim GUI) with ROS bridge
-  itr-world:
+  world:
     extends: base
     working_dir: /PX4-gazebo-models
     entrypoint: ["/bin/bash"]
     command: ["-c", "python3 simulation-gazebo"] # TODO: prepend appropriate ros-gz-bridge command
-
-  ## Start Control Layer
-  itr-gcs:
-    extends: gcs
-    command: ./usr/local/bin/QGroundControl.AppImage
-  
+    
   ## Deploy to Real Drone
-  itr-real:
-    extends: overlay
-    command: >
-      ros2 launch itr_mission_x500 mission.deploy.py
-      controller:=${ITR_CONTROLLER}
-      logging:=${ITR_LOGGING}
+  # itr-real:
+  #   extends: overlay
+  #   command: >
+  #     ros2 launch itr_mission_x500 mission.deploy.py
+  #     controller:=${ITR_CONTROLLER}
+  #     logging:=${ITR_LOGGING}

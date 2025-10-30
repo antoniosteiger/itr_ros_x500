@@ -1,0 +1,62 @@
+#!/bin/sh
+#
+# @name Holybro X500 V2
+#
+# @type Quadrotor x
+# @class Copter
+#
+# @maintainer Farhang Naderi <farhang.nba@gmail.com>
+#
+# @board px4_fmu-v2 exclude
+# @board bitcraze_crazyflie exclude
+#
+
+# Amended from: https://github.com/PX4/PX4-Autopilot/blob/main/ROMFS/px4fmu_common/init.d/airframes/4019_x500_v2
+# Weirdly, the rotor positions were not using real dimensions but 1 and -1. We updated it here.
+
+. ${R}etc/init.d/rc.mc_defaults
+
+param set-default IMU_GYRO_CUTOFF 30
+
+param set-default MC_ROLLRATE_P 0.14
+param set-default MC_PITCHRATE_P 0.14
+param set-default MC_ROLLRATE_I 0.3
+param set-default MC_PITCHRATE_I 0.3
+param set-default MC_ROLLRATE_D 0.004
+param set-default MC_PITCHRATE_D 0.004
+
+# Square quadrotor X PX4 numbering
+param set-default CA_AIRFRAME 0
+param set-default CA_ROTOR_COUNT 4
+param set-default CA_ROTOR0_PX 0.13
+param set-default CA_ROTOR0_PY 0.22
+param set-default CA_ROTOR0_KM  0.05
+
+param set-default CA_ROTOR1_PX -0.13
+param set-default CA_ROTOR1_PY -0.20
+param set-default CA_ROTOR1_KM  0.05
+
+param set-default CA_ROTOR2_PX 0.13
+param set-default CA_ROTOR2_PY -0.22
+param set-default CA_ROTOR2_KM -0.05
+
+param set-default CA_ROTOR3_PX -0.13
+param set-default CA_ROTOR3_PY 0.20
+param set-default CA_ROTOR3_KM -0.05
+
+### Adjustments for indoor motion capture
+# For more information refer to: https://docs.px4.io/main/en/ros/external_position_estimation
+# Use external vision data for: horizontal position (bit 0), vertical position (bit 1), yaw (bit 3)
+param set-default EKF2_EV_CTRL 11
+# Set visioin data as primary altitude source (bit 3)
+param set-default EKF2_HGT_REF 8
+# Delay between IMU and vision data
+param set-default EKF2_EV_DELAY 2
+# vision data position in reference to drone frame
+param set-default EKF2_EV_POS_X 0
+param set-default EKF2_EV_POS_Y 0
+param set-default EKF2_EV_POS_Z 0
+# Other settings:
+param set-default EKF2_GPS_CTRL 0 # No GPS
+param set-default EKF2_RNG_CTRL 0 # No range finder
+param set-default EKF2_BARO_CTRL 1 # Use on-board barometer in addition to mocap altitude (default)

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sdf version='1.9'>
+  <!-- From: https://github.com/PX4/PX4-gazebo-models/blob/main/models/x500_vision/model.sdf -->
+  <model name='x500_vision'>
+    <include merge='true'>
+      <uri>x500</uri>
+    </include>
+    <plugin
+      filename="gz-sim-odometry-publisher-system"
+      name="gz::sim::systems::OdometryPublisher">
+      <dimensions>3</dimensions>
+    </plugin>
+  </model>
+</sdf>
