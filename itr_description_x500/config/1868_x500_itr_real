@@ -5,17 +5,33 @@
 # @type Quadrotor x
 # @class Copter
 #
-# @maintainer Farhang Naderi <farhang.nba@gmail.com>
-#
-# @board px4_fmu-v2 exclude
-# @board bitcraze_crazyflie exclude
-#
+# @maintainer Antonio Steiger <antonio.steiger@tum.de>
 
 # Amended from: https://github.com/PX4/PX4-Autopilot/blob/main/ROMFS/px4fmu_common/init.d/airframes/4019_x500_v2
-# Weirdly, the rotor positions were not using real dimensions but 1 and -1. We updated it here.
 
 . ${R}etc/init.d/rc.mc_defaults
 
+### Simulation Stuff
+param set-default SIM_GZ_EN 1
+
+param set-default SIM_GZ_EC_FUNC1 101
+param set-default SIM_GZ_EC_FUNC2 102
+param set-default SIM_GZ_EC_FUNC3 103
+param set-default SIM_GZ_EC_FUNC4 104
+
+param set-default SIM_GZ_EC_MIN1 150
+param set-default SIM_GZ_EC_MIN2 150
+param set-default SIM_GZ_EC_MIN3 150
+param set-default SIM_GZ_EC_MIN4 150
+
+param set-default SIM_GZ_EC_MAX1 1000
+param set-default SIM_GZ_EC_MAX2 1000
+param set-default SIM_GZ_EC_MAX3 1000
+param set-default SIM_GZ_EC_MAX4 1000
+
+param set-default SIM_BAT_ENABLE 0
+
+# Rates
 param set-default IMU_GYRO_CUTOFF 30
 
 param set-default MC_ROLLRATE_P 0.14
@@ -25,9 +41,10 @@ param set-default MC_PITCHRATE_I 0.3
 param set-default MC_ROLLRATE_D 0.004
 param set-default MC_PITCHRATE_D 0.004
 
-# Square quadrotor X PX4 numbering
+### Airframe Stuff
 param set-default CA_AIRFRAME 0
 param set-default CA_ROTOR_COUNT 4
+
 param set-default CA_ROTOR0_PX 0.13
 param set-default CA_ROTOR0_PY 0.22
 param set-default CA_ROTOR0_KM  0.05
@@ -44,19 +61,37 @@ param set-default CA_ROTOR3_PX -0.13
 param set-default CA_ROTOR3_PY 0.20
 param set-default CA_ROTOR3_KM -0.05
 
+### Tuning and more
+param set-default MPC_THR_HOVER 0.60 # Thrust needed to hover:
+param set-default NAV_DLL_ACT 2 # GCS connection loss failsafe mode
+
 ### Adjustments for indoor motion capture
 # For more information refer to: https://docs.px4.io/main/en/ros/external_position_estimation
 # Use external vision data for: horizontal position (bit 0), vertical position (bit 1), yaw (bit 3)
 param set-default EKF2_EV_CTRL 11
 # Set visioin data as primary altitude source (bit 3)
 param set-default EKF2_HGT_REF 8
-# Delay between IMU and vision data
-param set-default EKF2_EV_DELAY 2
 # vision data position in reference to drone frame
 param set-default EKF2_EV_POS_X 0
 param set-default EKF2_EV_POS_Y 0
 param set-default EKF2_EV_POS_Z 0
+# EKF2 Vision Settings:
+param set-default EKF2_EVA_NOISE 0.1
+param set-default EKF2_EVP_GATE 5.0
+param set-default EKF2_EVP_NOISE 0.1
+param set-default EKF2_EVV_GATE 3.0
+param set-default EKF2_EVV_NOISE 0.1
+param set-default EKF2_EV_DELAY 2 # Delay between IMU and vision data
+param set-default EKF2_EV_NOISE_MD 0
 # Other settings:
 param set-default EKF2_GPS_CTRL 0 # No GPS
 param set-default EKF2_RNG_CTRL 0 # No range finder
 param set-default EKF2_BARO_CTRL 1 # Use on-board barometer in addition to mocap altitude (default)
+param set-default EKF2_GPS_CHECK 0 # No GPS checks
+param set-default GF_ACTION 3 # Geofencing
+param set-default GF_MAX_HOR_DIST 2 # Geofencing
+param set-default GF_MAX_VER_DIST 2 # Geofencing
+param set-default MPC_LAND_SPEED 0.6 # Landing Speed
+param set-default EKF2_GND_EFF_DZ 0.5 # Barometer fusion deadzone in m above ground
+param set-default LNDMC_ALT_GND 0.5
+param set-default SYS_HAS_GPS 0

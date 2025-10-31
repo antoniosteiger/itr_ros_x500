@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <sdf version='1.9'>
   <!-- From: https://github.com/PX4/PX4-gazebo-models/blob/main/models/x500_vision/model.sdf -->
-  <model name='x500_vision'>
+  <model name='x500_itr'>
     <include merge='true'>
       <uri>x500</uri>
     </include>
