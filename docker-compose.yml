@@ -84,6 +84,11 @@ services:
       - ./.colcon/build/:/itr_ros_x500/build/:rw
       - ./.colcon/install/:/itr_ros_x500/install/:rw
       - ./.colcon/log/:/itr_ros_x500/log/:rw
+      # Mount important files:
+      - ./itr_description_x500/models/x500_itr.sdf:/root/.simulation-gazebo/models/x500_itr/model.sdf:rw
+      - ./itr_description_x500/worlds/itr.sdf:/root/.simulation-gazebo/worlds/itr.sdf:rw
+      - ./itr_description_x500/config/1868_x500_itr_sim:/PX4-Autopilot/ROMFS/px4fmu_common/init.d-posix/airframes/1868_x500_itr_sim:rw
+      - ./itr_description_x500/config/1868_x500_itr_real:/PX4-Autopilot/ROMFS/px4fmu_common/init.d/airframes/1868_x500_itr_real:rw
     command: sleep infinity
 
 
@@ -103,17 +108,17 @@ services:
   ###########################################
   ## Start PX4 Flight Software with ROS bridge
   px4:
-    extends: base
+    extends: overlay
     working_dir: /PX4-Autopilot
     entrypoint: ["/bin/bash"]
-    command: ["-c", "MicroXRCEAgent udp4 -p 8888 & PX4_GZ_STANDALONE=1 make px4_sitl gz_x500_vision"]
+    command: ["-c", "MicroXRCEAgent udp4 -p 8888 & PX4_GZ_STANDALONE=1 PX4_SYS_AUTOSTART=1868 ./build/px4_sitl_default/bin/px4"]
 
   ## Start World (Gazebo Physics Sim GUI) with ROS bridge
   world:
-    extends: base
+    extends: overlay
     working_dir: /PX4-gazebo-models
     entrypoint: ["/bin/bash"]
-    command: ["-c", "python3 simulation-gazebo"] # TODO: prepend appropriate ros-gz-bridge command
+    command: ["-c", "python3 simulation-gazebo --world=itr"] # TODO: prepend appropriate ros-gz-bridge command
     
   ## Deploy to Real Drone
   # itr-real:

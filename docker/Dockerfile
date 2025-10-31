@@ -107,6 +107,28 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
  && rosdep install --from-paths src --ignore-src --rosdistro ${ROS_DISTRO} -y \
  && colcon build --symlink-install
 
+# Get Models:
+WORKDIR /PX4-gazebo-models
+RUN python3 simulation-gazebo --dryrun 
+
+# Place some files:
+# Follows: https://docs.px4.io/main/en/sim_gazebo_gz/#adding-new-worlds-and-models
+WORKDIR /itr_ros_x500
+COPY ./itr_description_x500/ ./src/itr_description_x500/
+RUN cp ./src/itr_description_x500/config/1868_x500_itr_sim /PX4-Autopilot/ROMFS/px4fmu_common/init.d-posix/airframes/ \
+ && cp ./src/itr_description_x500/config/1868_x500_itr_real /PX4-Autopilot/ROMFS/px4fmu_common/init.d/airframes/ \
+ && sed -i '73a 1868_x500_itr_sim' /PX4-Autopilot/ROMFS/px4fmu_common/init.d-posix/airframes/CMakeLists.txt \
+ && sed -i '68a 1868_x500_itr_real' /PX4-Autopilot/ROMFS/px4fmu_common/init.d/airframes/CMakeLists.txt \
+ && mkdir /root/.simulation-gazebo/models/x500_itr/ \
+ && cp ./src/itr_description_x500/models/x500_itr.sdf /root/.simulation-gazebo/models/x500_itr/model.sdf \
+ && mkdir /PX4-Autopilot/Tools/simulation/gz/models/x500_itr/ \
+ && cp ./src/itr_description_x500/models/x500_itr.sdf /PX4-Autopilot/Tools/simulation/gz/models/x500_itr/model.sdf \
+ && cp ./src/itr_description_x500/worlds/itr.sdf /root/.simulation-gazebo/worlds/
+
+WORKDIR /PX4-Autopilot
+RUN make px4_sitl
+ 
+
 ##################################################
 # DEV IMAGE with source code sync from host disk #
 ##################################################
