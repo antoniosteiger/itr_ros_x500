@@ -88,6 +88,7 @@ services:
       - ./itr_description_x500/models/x500_itr.sdf:/root/.simulation-gazebo/models/x500_itr/model.sdf:rw
       - ./itr_description_x500/worlds/itr.sdf:/root/.simulation-gazebo/worlds/itr.sdf:rw
       - ./itr_description_x500/config/1868_x500_itr_sim:/PX4-Autopilot/ROMFS/px4fmu_common/init.d-posix/airframes/1868_x500_itr_sim:rw
+      - ./itr_description_x500/config/1868_x500_itr_sim.post:/PX4-Autopilot/ROMFS/px4fmu_common/init.d-posix/airframes/1868_x500_itr_sim.post:rw
       - ./itr_description_x500/config/1868_x500_itr_real:/PX4-Autopilot/ROMFS/px4fmu_common/init.d/airframes/1868_x500_itr_real:rw
     command: sleep infinity
 
@@ -111,7 +112,15 @@ services:
     extends: overlay
     working_dir: /PX4-Autopilot
     entrypoint: ["/bin/bash"]
-    command: ["-c", "MicroXRCEAgent udp4 -p 8888 & PX4_GZ_STANDALONE=1 PX4_SYS_AUTOSTART=1868 ./build/px4_sitl_default/bin/px4"]
+    command: [
+      "-c", 
+      "MicroXRCEAgent udp4 -p 8888 \
+      & PX4_GZ_STANDALONE=1 PX4_SYS_AUTOSTART=1868 ./build/px4_sitl_default/bin/px4 \
+      & PX4_PID=$!; sleep 10; \
+      cd ./build/px4_sitl_default/bin; \
+      ./px4-commander set_ekf_origin 0 0 0 || echo 'Failed to set EKF origin'; \
+      wait $PX4_PID"
+    ]
 
   ## Start World (Gazebo Physics Sim GUI) with ROS bridge
   world:
