@@ -43,7 +43,7 @@ RUN git clone -b v2.4.3 https://github.com/eProsima/Micro-XRCE-DDS-Agent.git \
  && cmake .. && make && make install \
  && ldconfig
 
-# Install the gazebo<->ros bridge:
+# Install the gazebo<->ros bridge and py-trees-ros-viewer:
 RUN apt-get install -y --no-install-recommends ros-${ROS_DISTRO}-ros-gz-bridge
 
 # Get the PX4-models repository which has the gazebo launch helper
@@ -82,6 +82,21 @@ RUN curl -fsSL -o /usr/local/bin/QGroundControl.AppImage \
 
 RUN chown -R qgcuser:qgcuser /usr/local/bin/QGroundControl.AppImage
 USER qgcuser
+
+############################
+# PYTREES VISUALIZER IMAGE #
+############################
+# Should not be run as root, so add user
+FROM base AS pytrees
+
+WORKDIR /
+
+# QGC can't be run as root
+RUN useradd -m -s /bin/bash pytree_user
+
+RUN apt-get install -y --no-install-recommends ros-${ROS_DISTRO}-py-trees-ros-viewer
+
+USER pytree_user
 
 
 ###########################################
