@@ -49,7 +49,8 @@
 					"/itr_ros_x500/install/itr_controller_x500/lib/python3.12/site-packages",
 					"/itr_ros_x500/install/itr_mission_x500/lib/python3.12/site-packages",
 					"/itr_ros_x500/install/itr_mocap_x500/lib/python3.12/site-packages",
-					"/itr_ros_x500/install/itr_statemachine_x500/lib/python3.12/site-packages"
+					"/itr_ros_x500/install/itr_statemachine_x500/lib/python3.12/site-packages",
+					"/itr_ros_x500/install/itr_comms_x500/lib/python3.12/site-packages"
 				],
 				"python.autoComplete.extraPaths": [
 					"/opt/ros/jazzy/lib/python3.12/site-packages",
@@ -57,7 +58,8 @@
 					"/itr_ros_x500/install/itr_controller_x500/lib/python3.12/site-packages",
 					"/itr_ros_x500/install/itr_mission_x500/lib/python3.12/site-packages",
 					"/itr_ros_x500/install/itr_mocap_x500/lib/python3.12/site-packages",
-					"/itr_ros_x500/install/itr_statemachine_x500/lib/python3.12/site-packages"
+					"/itr_ros_x500/install/itr_statemachine_x500/lib/python3.12/site-packages",
+					"/itr_ros_x500/install/itr_comms_x500/lib/python3.12/site-packages"
 				],
 				"[python]": {
 					"editor.formatOnSave": true,
