@@ -127,7 +127,15 @@ services:
     extends: overlay
     working_dir: /PX4-gazebo-models
     entrypoint: ["/bin/bash"]
-    command: ["-c", "python3 simulation-gazebo --world=itr"] # TODO: prepend appropriate ros-gz-bridge command
+    command: [
+      "-c", 
+      "python3 simulation-gazebo --world=itr \
+      & cd /itr_ros_x500 \
+      && source /opt/ros/$ROS_DISTRO/setup.bash \
+      && source ./install/local_setup.bash \
+      && sleep 5 \
+      && ros2 run ros_gz_bridge parameter_bridge --ros-args -p config_file:=./src/itr_description_x500/config/ros_gz_bridge_map.yml"
+    ]
     
   ## Deploy to Real Drone
   # itr-real:

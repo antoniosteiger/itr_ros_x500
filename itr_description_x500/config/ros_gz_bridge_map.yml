@@ -1,0 +1,12 @@
+# Full set of configurations
+- ros_topic_name: "/pose"
+  gz_topic_name: "/model/x500_itr_0/odometry_with_covariance"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.OdometryWithCovariance"
+  #subscriber_queue: 5       # Default 10 if qos_profile is empty, otherwise not set by default
+  #publisher_queue: 6        # Default 10 if qos_profile is empty, otherwise not set by default
+  #lazy: false                # Default "false"
+  direction: GZ_TO_ROS  # Default "BIDIRECTIONAL" - Bridge both directions
+                            # "GZ_TO_ROS" - Bridge Gz topic to ROS
+                            # "ROS_TO_GZ" - Bridge ROS topic to Gz
+  #qos_profile: SENSOR_DATA  # Default is a default-constructed QoS with appropriate queue size
