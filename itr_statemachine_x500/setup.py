@@ -18,7 +18,7 @@ setup(
         # Include all launch files.
         (os.path.join('share', package_name, 'launch'), glob(os.path.join('launch', '*.launch.py'))),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'py_trees'],
     zip_safe=True,
     author='Antonio Steiger',
     author_email='antonio.steiger@tum.de',

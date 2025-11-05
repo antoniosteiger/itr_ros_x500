@@ -40,9 +40,12 @@ class Comms(Node):
             QOS_PROFILE_PX4_PUB
         )
     
+    def get_timestamp(self):
+        return int(self.get_clock().now().nanoseconds / 1000)
+    
     def make_cmd(self, cmd, param1 = 0, param2 = 0, param3 = 0, param4 = 0, param5 = 0, param6 = 0, param7 = 0):
         msg = VehicleCommand()
-        msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
+        msg.timestamp = self.get_timestamp()
         msg.command = cmd
         msg.param1 = param1
         msg.param2 = param2
@@ -72,3 +75,10 @@ class Comms(Node):
     def cmd_land(self, yaw=0.0):
         msg = self.make_cmd(21, param4=yaw)
         self.cmd_pub.publish(msg)
+
+    def send_offboard_mode(self, mode=str):
+        msg = OffboardControlMode()
+        msg.timestamp = self.get_timestamp()
+        msg[mode] = True
+        self.ob_pub.publish(msg)
+    

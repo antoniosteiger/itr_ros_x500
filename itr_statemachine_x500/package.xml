@@ -8,6 +8,9 @@
   <license>Apache 2.0</license>
 
   <depend>px4_msgs</depend>
+  <depend>py_trees</depend>
+  <depend>py_trees_ros</depend>
+  <depend>itr_comms_x500</depend>
 
   <export>
     <build_type>ament_python</build_type>
