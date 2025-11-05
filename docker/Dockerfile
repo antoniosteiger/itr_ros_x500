@@ -94,7 +94,7 @@ RUN mkdir -p /itr_ros_x500/src
 WORKDIR /itr_ros_x500
 
 # Get Source Code:
-RUN git clone https://github.com/antoniosteiger/itr_ros_x500.git ./src \
+RUN git clone --branch v0.1.0 https://github.com/antoniosteiger/itr_ros_x500.git ./src \
  && rm -rf ./src/docker \
  && rm ./src/docker-compose.yml
 
