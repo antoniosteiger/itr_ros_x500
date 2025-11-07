@@ -28,6 +28,7 @@ setup(
     # scripts here.
     entry_points={
         'console_scripts': [
+            "itr_statemachine_x500 = itr_statemachine_x500.statemachine:main",
         ],
     },
 )

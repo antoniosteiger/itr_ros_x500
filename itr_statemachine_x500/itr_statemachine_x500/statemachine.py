@@ -3,46 +3,43 @@ from typing import Callable
 
 import rclpy
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 import py_trees
 import py_trees_ros
 
 from px4_msgs.msg import OffboardControlMode
 from px4_msgs.msg import VehicleCommand
 
-from itr_comms_x500 import Comms
+from .comms import Comms
 
-UPDATE_INTERVAL_S = 0.05
 
 class State(py_trees.behaviour.Behaviour):
-    def __init__(self, name, entry:Callable = lambda: None, do:Callable = lambda: None, exit:Callable = lambda: None):
+    def __init__(self, name, comms: Comms = None):
         super().__init__(name)
 
-        self.entry = entry
-        self.do = do
-        self.exit = exit
-
-    def setup(self):
-
-        pass
+        self.comms = comms
 
     def initialise(self):
         super().initialise()
-        self.entry()
+        #self.entry()
         return
 
     def update(self):
-        self.do()
+        #self.do()
         return py_trees.common.Status.SUCCESS
     
     def terminate(self, new_status):
-        self.exit()
+        #self.exit()
         pass
 
 
 class SafeState(State):
     def __init__(self):
         super().__init__("Safe State")
-        self.cmd_pub
+    
+    def setup(self, **kwargs):
+        print("Safe State Setup")
+        return
     
     def initialise(self):
         
@@ -50,46 +47,82 @@ class SafeState(State):
     
     def update(self):
         # TODO: Check if drone has landed (likely through arming state)
-        if self.is_landed is True:
-            return py_trees.common.Status.SUCCESS
-        else:
-            return py_trees.common.Status.RUNNING
+        print("Safe State Running")
+        return py_trees.common.Status.RUNNING
         
 class HoverState(State):
     def __init__(self):
         super().__init__("Hover State")
 
+class Arm(State):
+    def __Init__(self, name: str, comms: Comms):
+        super().__init__(name, comms)
+        self.comms = comms
+
+    def initialise(self):
+        self.comms.cmd_arm()
+    
+    def update(self):
+        if self.comms.cmd_is_success() and self.comms.get_status()["arm"]:
+            self.feedback_message = "Vehicle Armed"
+            return py_trees.common.Status.SUCCESS
+        else:
+            return py_trees.common.Status.RUNNING
+
 
 class Statemachine(Node):
-    def __init__(self, comms: Comms, name="Main", tick_interval_s:float=0.05):
-        super().__init__("itr_statemachine_x500")
+    def __init__(self, name="tree", tick_interval_s:float=0.05):
+        super().__init__(name)
         self.tick_interval_s = tick_interval_s
         
-        self.root = py_trees.composites.Selector("Root", memory=True)
-        self.states = py_trees.composites.Sequence(name, memory=True)
+        self.root = py_trees.composites.Selector("Root", memory=False)
+        self.states = py_trees.composites.Sequence(name, memory=False)
         self.root.add_children([self.states, SafeState()])
+
+        self.comms = Comms(self, debug=True)
+
+        self.tree = py_trees_ros.trees.BehaviourTree(root=self.root)
+        self.tree.setup(node=self, timeout=15.0)
         
-        # ?
-        self._parameter_overrides=[
-            rclpy.parameter.Parameter(
-                "default_snapshot_stream",
-                rclpy.parameter.Parameter.Type.BOOL,
-                True
-            ),
-            rclpy.parameter.Parameter(
-                "default_snapshot_period",
-                rclpy.parameter.Parameter.Type.DOUBLE,
-                UPDATE_INTERVAL_S
-            ),
-        ]
+        self.set_parameters([
+            Parameter("default_snapshot_stream", Parameter.Type.BOOL, True),
+            Parameter("default_snapshot_blackboard_data", Parameter.Type.BOOL, True),
+            Parameter("default_snapshot_blackboard_activity", Parameter.Type.BOOL, True),
+            Parameter("default_snapshot_period", Parameter.Type.DOUBLE, tick_interval_s)
+        ])
+
+
+        self.timer = self.create_timer(self.tick_interval_s, self.run)
 
     def add_state(self, state: State):
         self.states.add_child(state)
 
     def run(self):
-        tree = py_trees_ros.trees.BehaviourTree(root=self.root)
-        tree.setup(node=self.node, timeout=15.0)
-
-        tree.tick_tock(int(self.tick_interval_s * 1000))
+        try:
+            self.tree.tick()
+        except Exception as e:
+            self.get_logger().error(f"Error ticking tree: {e}")
 
     
+    def shutdown(self):
+        self.tree.shutdown()
+        
+    
+def main(args=None):
+    rclpy.init(args=args)
+    
+    try:
+        statemachine = Statemachine(tick_interval_s=0.5)
+        armingState = Arm("Arming", statemachine.comms)
+        statemachine.add_state(armingState)
+        rclpy.spin(statemachine)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if rclpy.ok():
+            statemachine.shutdown()
+            statemachine.destroy_node()
+            rclpy.shutdown()
+
+if __name__ == "__main__":
+    main()

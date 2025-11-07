@@ -10,6 +10,7 @@ from rclpy.qos import (
 from px4_msgs.msg import (
     VehicleCommand,
     OffboardControlMode,
+    VehicleStatus
 )
 
 QOS_PROFILE_PX4_SUB = QoSProfile(
@@ -23,7 +24,7 @@ QOS_PROFILE_PX4_PUB = QoSProfile(
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
             durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
             history=QoSHistoryPolicy.KEEP_LAST,
-            depth=0
+            depth=1
 )
 
 class Comms(Node):
@@ -39,6 +40,8 @@ class Comms(Node):
             "/fmu/in/offboard_control_mode",
             QOS_PROFILE_PX4_PUB
         )
+
+        self.status_sub = None
     
     def get_timestamp(self):
         return int(self.get_clock().now().nanoseconds / 1000)
@@ -81,4 +84,12 @@ class Comms(Node):
         msg.timestamp = self.get_timestamp()
         msg[mode] = True
         self.ob_pub.publish(msg)
+    
+    def subscribe_vehicle_status(self, callback):
+        self.status_sub = self.create_subscription(
+            VehicleStatus,
+            "/fmu/out/vehicle_status_v1",
+            QOS_PROFILE_PX4_SUB,
+            callback
+        )
     

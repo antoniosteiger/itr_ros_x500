@@ -97,3 +97,5 @@ param set-default LNDMC_ALT_GND 0.5
 param set-default SYS_HAS_GPS 0
 param set-default COM_FAIL_ACT_T 0.0 # fail-safe reaction time 0s
 param set-default RTL_RETURN_ALT 0.5 # minimum altitude RTL can be performed from
+param set-default MIS_TAKEOFF_ALT 1.5 # default takeoff altitude
+param set-default PLD_BTOUT 0.0 # timeout for missing data for precision landing (we have no range finder, but still want precision landing)
