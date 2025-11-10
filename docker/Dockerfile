@@ -87,17 +87,11 @@ USER qgcuser
 # PYTREES VISUALIZER IMAGE #
 ############################
 # Should not be run as root, so add user
-FROM base AS pytrees
+FROM base AS fsm
 
 WORKDIR /
 
-# QGC can't be run as root
-RUN useradd -m -s /bin/bash pytree_user
-
-RUN apt-get install -y --no-install-recommends ros-${ROS_DISTRO}-py-trees-ros-viewer
-
-USER pytree_user
-
+RUN apt-get install -y --no-install-recommends ros-${ROS_DISTRO}-yasmin ros-${ROS_DISTRO}-yasmin-*
 
 ###########################################
 # OVERLAY IMAGE with Source Code from Git #

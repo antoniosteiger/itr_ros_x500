@@ -203,6 +203,11 @@ class Comms():
         msg = self._make_cmd_msg(cmd, param1=1.0, param2=6.0)
         self._send_cmd(msg)
     
+    def cmd_reboot(self):
+        cmd = VehicleCommand.VEHICLE_CMD_PREFLIGHT_REBOOT_SHUTDOWN
+        msg = self._make_cmd_msg(cmd, param1=1.0)
+        self._send_cmd(msg)
+    
     def cmd_is_success(self):
         if (
             self._cmd_sent == self._cmd_ack_id

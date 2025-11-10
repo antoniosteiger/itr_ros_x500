@@ -7,11 +7,12 @@
   <maintainer email="antonio.steiger@tum.de">Antonio Steiger</maintainer>
   <license>Apache 2.0</license>
 
+  <depend>rclpy</depend>
   <depend>px4_msgs</depend>
-  <depend>py_trees</depend>
-  <depend>py_trees_ros</depend>
-  <depend>itr_comms_x500</depend>
-
+  <depend>yasmin</depend>
+  <depend>yasmin_ros</depend>
+  <depend>yasmin_viewer</depend>
+  
   <export>
     <build_type>ament_python</build_type>
   </export>

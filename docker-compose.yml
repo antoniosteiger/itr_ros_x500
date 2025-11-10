@@ -128,7 +128,7 @@ services:
       && ros2 run ros_gz_bridge parameter_bridge --ros-args -p config_file:=./src/itr_description_x500/config/ros_gz_bridge_map.yml"
     ]
   
-    ## Ground Control Station
+  ## Ground Control Station
   gcs:
     extends: base
     image: itr_x500:gcs
@@ -138,15 +138,20 @@ services:
       target: gcs
     command: ./usr/local/bin/QGroundControl.AppImage
 
-      ## Ground Control Station
-  pytrees:
+  ## Finite State Machine Viewer
+  fsm:
     extends: base
-    image: itr_x500:pytrees
+    image: itr_x500:fsm
     build:
       context: .
       dockerfile: docker/Dockerfile
-      target: pytrees
-    command: py-trees-tree-viewer
+      target: fsm
+    entrypoint: ["/bin/bash"]
+    command: [
+      "-c",
+      "source /opt/ros/$ROS_DISTRO/setup.bash \
+      && ros2 run yasmin_viewer yasmin_viewer_node"
+    ]
     
   ## Deploy to Real Drone
   # itr-real:
