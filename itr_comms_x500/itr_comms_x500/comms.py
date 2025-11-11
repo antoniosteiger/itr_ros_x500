@@ -1,54 +1,154 @@
+from typing import Callable, Literal, TypedDict
 
+import numpy as np
+import numpy.typing as npt
+from nav_msgs.msg import Odometry
 from rclpy.node import Node
+from rclpy.publisher import Publisher
 from rclpy.qos import (
     QoSDurabilityPolicy,
     QoSHistoryPolicy,
     QoSProfile,
     QoSReliabilityPolicy,
 )
+from rclpy.subscription import Subscription
 
 from px4_msgs.msg import (
-    VehicleCommand,
     OffboardControlMode,
-    VehicleStatus
+    VehicleCommand,
+    VehicleCommandAck,
+    VehicleStatus,
 )
 
+POSE_TOPIC = "/pose"
+DEFAULT_TAKEOFF_ALTITUDE = 1.5
+
 QOS_PROFILE_PX4_SUB = QoSProfile(
-            reliability=QoSReliabilityPolicy.BEST_EFFORT,  # As fast as possible, no retransmissions
-            durability=QoSDurabilityPolicy.VOLATILE,  # Don't keep message history
-            history=QoSHistoryPolicy.KEEP_LAST,  # Only keep last N messages
-            depth=1,  # only latest message in history
+    reliability=QoSReliabilityPolicy.BEST_EFFORT,  # As fast as possible, no retransmissions
+    durability=QoSDurabilityPolicy.VOLATILE,  # Don't keep message history
+    history=QoSHistoryPolicy.KEEP_LAST,  # Only keep last N messages
+    depth=1,  # only latest message in history
 )
 
 QOS_PROFILE_PX4_PUB = QoSProfile(
-            reliability=QoSReliabilityPolicy.BEST_EFFORT,
-            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-            history=QoSHistoryPolicy.KEEP_LAST,
-            depth=1
+    reliability=QoSReliabilityPolicy.BEST_EFFORT,
+    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+    history=QoSHistoryPolicy.KEEP_LAST,
+    depth=1,
 )
 
-class Comms(Node):
-    def __init__(self):
-        self.cmd_pub = self.create_publisher(
-            VehicleCommand,
-            "/fmu/in/vehicle_command",
-            QOS_PROFILE_PX4_PUB
+
+class Status(TypedDict):
+    nav: int
+    arm: bool
+    checks: bool
+
+
+class Comms:
+    def __init__(self, node: Node, debug=False):
+        self.node = node
+
+        self._pubs: dict[str, Publisher] = {}
+        self._subs: dict[str, Subscription] = {}
+
+        self.position = np.array([0.0, 0.0, 0.0])
+        self.orientation = np.array([0.0, 0.0, 0.0, 1.0])
+        self.status: Status = {
+            "nav": VehicleStatus.NAVIGATION_STATE_MAX,
+            "arm": VehicleStatus.ARMING_STATE_DISARMED,
+            "checks": False,
+        }
+        self._cmd_sent = 0
+        self._cmd_ack_result = VehicleCommandAck.VEHICLE_CMD_RESULT_DENIED
+        self._cmd_ack_id: int = -1
+
+        self.set_debug(debug)
+        self._init_subs()
+        self._init_pubs()
+
+    def set_debug(self, debug: bool = True):
+        self.debug = debug
+
+    def _log(self, msg: str):
+        # self.node.get_logger().info(f"\033[35m{msg}")
+        print(f"\033[35m[ITR_COMMS]: {msg}")
+
+    def _get_timestamp(self):
+        return int(self.node.get_clock().now().nanoseconds / 1000)
+
+    def _make_sub(self, type, topic: str, callback: Callable):
+        self._subs[topic] = self.node.create_subscription(
+            type,
+            topic,
+            callback,
+            QOS_PROFILE_PX4_SUB,
         )
 
-        self.ob_pub = self.create_publisher(
-            OffboardControlMode,
-            "/fmu/in/offboard_control_mode",
-            QOS_PROFILE_PX4_PUB
+    def _init_subs(self):
+        self._make_sub(Odometry, POSE_TOPIC, self._pose_callback)
+        self._make_sub(
+            VehicleStatus, "/fmu/out/vehicle_status_v1", self._status_callback
+        )
+        self._make_sub(
+            VehicleCommandAck, "/fmu/out/vehicle_command_ack", self._cmd_ack_callback
         )
 
-        self.status_sub = None
-    
-    def get_timestamp(self):
-        return int(self.get_clock().now().nanoseconds / 1000)
-    
-    def make_cmd(self, cmd, param1 = 0, param2 = 0, param3 = 0, param4 = 0, param5 = 0, param6 = 0, param7 = 0):
+    def _pose_callback(self, msg: Odometry):
+        self.position[0] = msg.pose.pose.position.x
+        self.position[1] = msg.pose.pose.position.y
+        self.position[2] = msg.pose.pose.position.z
+
+        self.orientation[0] = msg.pose.pose.orientation.x
+        self.orientation[1] = msg.pose.pose.orientation.y
+        self.orientation[2] = msg.pose.pose.orientation.z
+        self.orientation[3] = msg.pose.pose.orientation.w
+
+    def _status_callback(self, msg: VehicleStatus):
+        self.status["nav"] = msg.nav_state
+        if msg.arming_state == VehicleStatus.ARMING_STATE_ARMED:
+            self.status["arm"] = True
+        else:
+            self.status["arm"] = False
+        self.status["checks"] = msg.pre_flight_checks_pass
+
+    def _cmd_ack_callback(self, msg: VehicleCommandAck):
+        self._cmd_ack_result = msg.result
+        self._cmd_ack_id = msg.command
+
+        if self.debug:
+            if self.cmd_is_success():
+                self._log(f"Command {self._cmd_ack_id} succeeded.")
+            else:
+                self._log(f"Command {self._cmd_ack_id} FAILED.")
+
+    def get_position(self) -> npt.NDArray[np.float64]:
+        return self.position
+
+    def get_orientation(self) -> npt.NDArray[np.float64]:
+        return self.orientation
+
+    def get_status(self) -> Status:
+        return self.status
+
+    def _make_pub(self, type, topic: str):
+        self._pubs[topic] = self.node.create_publisher(type, topic, QOS_PROFILE_PX4_PUB)
+
+    def _init_pubs(self):
+        self._make_pub(VehicleCommand, "/fmu/in/vehicle_command")
+        self._make_pub(OffboardControlMode, "/fmu/in/offboard_control_mode")
+
+    def _make_cmd_msg(
+        self,
+        cmd,
+        param1=0.0,
+        param2=0.0,
+        param3=0.0,
+        param4=0.0,
+        param5=0.0,
+        param6=0.0,
+        param7=0.0,
+    ) -> VehicleCommand:
         msg = VehicleCommand()
-        msg.timestamp = self.get_timestamp()
         msg.command = cmd
         msg.param1 = param1
         msg.param2 = param2
@@ -65,31 +165,106 @@ class Comms(Node):
 
         return msg
 
-    # For command number definitions, refer to: https://github.com/PX4/PX4-Autopilot/blob/main/msg/versioned/VehicleCommand.msg
+    def _send_cmd(self, msg: VehicleCommand):
+        self._cmd_sent = msg.command
+        self._pubs["/fmu/in/vehicle_command"].publish(msg)
+        if self.debug:
+            self._log(f"Command {msg.command} has been sent.")
 
-    def cmd_takeoff(self, altitude = 1.5):
-        msg = self.make_cmd(22, param7=altitude)
-        self.cmd_pub.publish(msg)
-    
-    def cmd_rtl(self):
-        msg = self.make_cmd(20)
-        self.cmd_pub.publish(msg)
-
-    def cmd_land(self, yaw=0.0):
-        msg = self.make_cmd(21, param4=yaw)
-        self.cmd_pub.publish(msg)
-
-    def send_offboard_mode(self, mode=str):
-        msg = OffboardControlMode()
-        msg.timestamp = self.get_timestamp()
-        msg[mode] = True
-        self.ob_pub.publish(msg)
-    
-    def subscribe_vehicle_status(self, callback):
-        self.status_sub = self.create_subscription(
-            VehicleStatus,
-            "/fmu/out/vehicle_status_v1",
-            QOS_PROFILE_PX4_SUB,
-            callback
+    def cmd_set_origin(
+        self, latitude: float = 0.0, longitude: float = 0.0, altitude: float = 0.0
+    ):
+        cmd = VehicleCommand.VEHICLE_CMD_SET_GPS_GLOBAL_ORIGIN
+        msg = self._make_cmd_msg(
+            cmd, param5=latitude, param6=longitude, param7=altitude
         )
-    
+        self._send_cmd(msg)
+
+    # def cmd_takeoff(
+    #     self,
+    #     latitude: float = 0.0,
+    #     longitude: float = 0.0,
+    #     altitude: float = DEFAULT_TAKEOFF_ALTITUDE,
+    #     yaw: float = 0.0
+    # ):
+    #     cmd = VehicleCommand.VEHICLE_CMD_NAV_TAKEOFF
+    #     msg = self._make_cmd_msg(cmd)
+    #     self._send_cmd(msg)
+
+    def cmd_rtl(self):
+        cmd = VehicleCommand.VEHICLE_CMD_NAV_RETURN_TO_LAUNCH
+        msg = self._make_cmd_msg(cmd)
+        self._send_cmd(msg)
+
+    def cmd_arm(self):
+        cmd = VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM
+        msg = self._make_cmd_msg(cmd, param1=1.0)
+        self._send_cmd(msg)
+
+    def cmd_offboard_mode(self):
+        cmd = VehicleCommand.VEHICLE_CMD_DO_SET_MODE
+        msg = self._make_cmd_msg(cmd, param1=1.0, param2=6.0)
+        self._send_cmd(msg)
+
+    def cmd_takeoff(self):
+        cmd = VehicleCommand.VEHICLE_CMD_DO_SET_MODE
+        msg = self._make_cmd_msg(cmd, param1=1.0, param2=4.0, param3=2.0)
+        self._send_cmd(msg)
+
+    def cmd_hover(self):
+        cmd = VehicleCommand.VEHICLE_CMD_DO_SET_MODE
+        msg = self._make_cmd_msg(cmd, param1=1.0, param2=4.0, param3=3.0)
+        self._send_cmd(msg)
+
+    def cmd_reboot(self):
+        cmd = VehicleCommand.VEHICLE_CMD_PREFLIGHT_REBOOT_SHUTDOWN
+        msg = self._make_cmd_msg(cmd, param1=1.0)
+        self._send_cmd(msg)
+
+    def cmd_is_success(self):
+        if (
+            self._cmd_sent == self._cmd_ack_id
+            and self._cmd_ack_result == VehicleCommandAck.VEHICLE_CMD_RESULT_ACCEPTED
+        ):
+            return True
+        else:
+            return False
+
+    def offboard_keepalive(
+        self,
+        desired_setpoint: Literal[
+            "position",
+            "velocity",
+            "acceleration",
+            "attitude",
+            "body_rate",
+            "thrust_and_torque",
+            "direct_actuator",
+        ],
+    ):
+        msg = OffboardControlMode()
+        msg.timestamp = self._get_timestamp()
+        msg.position = False
+        msg.velocity = False
+        msg.acceleration = False
+        msg.attitude = False
+        msg.body_rate = False
+        msg.thrust_and_torque = False
+        msg.direct_actuator = False
+        match desired_setpoint:
+            case "position":
+                msg.position = True
+            case "velocity":
+                msg.velocity = True
+            case "acceleration":
+                msg.acceleration = True
+            case "attitude":
+                msg.attitude = True
+            case "body_rate":
+                msg.body_rate = True
+            case "thrust_and_torque":
+                msg.thrust_and_torque = True
+            case "direct_actuator":
+                msg.direct_actuator = True
+
+        self._pubs["/fmu/in/offboard_control_mode"].publish(msg)

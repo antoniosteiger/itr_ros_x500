@@ -1,6 +1,7 @@
-import numpy as np
-#from scipy.spatial.transform import Rotation as R
+# from scipy.spatial.transform import Rotation as R
 import time
+
+import numpy as np
 
 # ROS2 Interface
 import rclpy
@@ -12,30 +13,32 @@ from rclpy.qos import (
     QoSProfile,
     QoSReliabilityPolicy,
 )
+from scipy.spatial.transform import Rotation as R
 
 # PX4 Interface
 from px4_msgs.msg import (
-    VehicleThrustSetpoint,
-    VehicleAttitudeSetpoint,
     OffboardControlMode,
-    VehicleStatus,
     TrajectorySetpoint,
-    VehicleCommand
+    VehicleAttitudeSetpoint,
+    VehicleCommand,
+    VehicleStatus,
+    VehicleThrustSetpoint,
 )
 
 QOS_PROFILE_PX4_SUB = QoSProfile(
-            reliability=QoSReliabilityPolicy.BEST_EFFORT,  # As fast as possible, no retransmissions
-            durability=QoSDurabilityPolicy.VOLATILE,  # Don't keep message history
-            history=QoSHistoryPolicy.KEEP_LAST,  # Only keep last N messages
-            depth=0,  # only latest message in history
+    reliability=QoSReliabilityPolicy.BEST_EFFORT,  # As fast as possible, no retransmissions
+    durability=QoSDurabilityPolicy.VOLATILE,  # Don't keep message history
+    history=QoSHistoryPolicy.KEEP_LAST,  # Only keep last N messages
+    depth=0,  # only latest message in history
 )
 
 QOS_PROFILE_PX4_PUB = QoSProfile(
-            reliability=QoSReliabilityPolicy.BEST_EFFORT,
-            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-            history=QoSHistoryPolicy.KEEP_LAST,
-            depth=0
+    reliability=QoSReliabilityPolicy.BEST_EFFORT,
+    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+    history=QoSHistoryPolicy.KEEP_LAST,
+    depth=0,
 )
+
 
 class Controller(Node):
     def __init__(self, name, sampling_interval_s=0.05, debug=False):
@@ -65,10 +68,9 @@ class Controller(Node):
 
         # Set EKF Origin (Makes Geofencing and RTL possible with MoCap)
         self.cmd_set_ekf_origin()
-        time.sleep(1.0) # Wait for command to complete.
-        
-        self.control_timer = self.create_timer(sampling_interval_s, self.run)
+        time.sleep(1.0)  # Wait for command to complete.
 
+        self.control_timer = self.create_timer(sampling_interval_s, self.run)
 
     def _pose_callback(self, msg: Odometry):
         self.position[0] = msg.pose.pose.position.x
@@ -85,38 +87,51 @@ class Controller(Node):
         #     self.get_logger().info(f"Orientation: {self.orientation}")
 
     def _status_callback(self, msg: VehicleStatus):
-        #self.get_logger().info(f"NAV_STATUS: {msg.nav_state}")
-        #self.get_logger().info(f"TARGET OFFBOARD STATUS: {VehicleStatus.NAVIGATION_STATE_OFFBOARD}")
-        
+        # self.get_logger().info(f"NAV_STATUS: {msg.nav_state}")
+        # self.get_logger().info(f"TARGET OFFBOARD STATUS: {VehicleStatus.NAVIGATION_STATE_OFFBOARD}")
+
         self.nav_state = msg.nav_state
         self.arming_state = msg.arming_state
 
     def get_euler_orientation(self):
-        roll, pitch, yaw = R.from_quat(self.orientation).as_euler('xyz', degrees=False)
+        roll, pitch, yaw = R.from_quat(self.orientation).as_euler("xyz", degrees=False)
         return np.array([roll, pitch, yaw])
 
     def compute_control(self):
         thrust = [0, 0, 0.5]
         attitude = [0, 0, 0, 1]
 
-
         return thrust, attitude
-    
-    def run(self):
 
+    def run(self):
         if self.state == 0 and self.arming_state == VehicleStatus.ARMING_STATE_DISARMED:
             self.cmd_arm()
-        if self.arming_state == VehicleStatus.ARMING_STATE_ARMED and self.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_LOITER and self.position[2] < 1.2:
+        if (
+            self.arming_state == VehicleStatus.ARMING_STATE_ARMED
+            and self.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_LOITER
+            and self.position[2] < 1.2
+        ):
             self.state = 1
             print(self.position[2])
             self.cmd_takeoff()
             self.start_time = int(self.get_clock().now().nanoseconds / 1000)
-        if self.arming_state == VehicleStatus.ARMING_STATE_ARMED and self.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_TAKEOFF: pass
-        if self.arming_state == VehicleStatus.ARMING_STATE_ARMED and self.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_LOITER and self.position[2] > 1.2:
+        if (
+            self.arming_state == VehicleStatus.ARMING_STATE_ARMED
+            and self.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_TAKEOFF
+        ):
+            pass
+        if (
+            self.arming_state == VehicleStatus.ARMING_STATE_ARMED
+            and self.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_LOITER
+            and self.position[2] > 1.2
+        ):
             self.state = 2
             self.cmd_activate_offboard()
             self._send_offboard()
-        if self.arming_state == VehicleStatus.ARMING_STATE_ARMED and self.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+        if (
+            self.arming_state == VehicleStatus.ARMING_STATE_ARMED
+            and self.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD
+        ):
             self._send_offboard()
             trajectory_msg = TrajectorySetpoint()
             trajectory_msg.position[0] = self.radius * np.cos(self.theta)
@@ -125,18 +140,26 @@ class Controller(Node):
             self.pubs["trajectory_setpoint"].publish(trajectory_msg)
 
             self.theta = self.theta + self.omega * self.sampling_interval_s
-            if int(self.get_clock().now().nanoseconds / 1000) - self.start_time > 10000000:
-                #self.cmd_hover()
+            if (
+                int(self.get_clock().now().nanoseconds / 1000) - self.start_time
+                > 10000000
+            ):
+                # self.cmd_hover()
                 self.cmd_deactivate_offboard()
                 self.state = 3
-            if self.state == 3 and self.arming_state == VehicleStatus.ARMING_STATE_ARMED and self.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_LOITER and self.position[2] > 1.2:
+            if (
+                self.state == 3
+                and self.arming_state == VehicleStatus.ARMING_STATE_ARMED
+                and self.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_LOITER
+                and self.position[2] > 1.2
+            ):
                 self.cmd_precland()
                 print("success")
                 return
 
         # return
         # self.cmd_takeoff()
-    
+
     def apply_control(self, thrust, attitude):
         # thrust_msg = VehicleThrustSetpoint()
         # thrust_msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
@@ -148,13 +171,13 @@ class Controller(Node):
         attitude_msg.q_d = attitude
         attitude_msg.thrust_body = thrust
 
-        #self.pubs["thrust_setpoint"].publish(thrust_msg)
+        # self.pubs["thrust_setpoint"].publish(thrust_msg)
         self.pubs["attitude_setpoint"].publish(attitude_msg)
 
         if self.debug:
             self.get_logger().info(f"Applied Control: {thrust}, {attitude}")
         return
-    
+
     def _init_topics(self):
         self.subs["pose"] = self.create_subscription(
             Odometry,
@@ -167,40 +190,42 @@ class Controller(Node):
             VehicleStatus,
             "fmu/out/vehicle_status_v1",
             self._status_callback,
-            QOS_PROFILE_PX4_SUB
+            QOS_PROFILE_PX4_SUB,
         )
 
         self.pubs["thrust_setpoint"] = self.create_publisher(
-            VehicleThrustSetpoint,
-            "fmu/in/vehicle_thrust_setpoint",
-            QOS_PROFILE_PX4_PUB
+            VehicleThrustSetpoint, "fmu/in/vehicle_thrust_setpoint", QOS_PROFILE_PX4_PUB
         )
 
         self.pubs["attitude_setpoint"] = self.create_publisher(
             VehicleAttitudeSetpoint,
             "fmu/in/vehicle_attitude_setpoint",
-            QOS_PROFILE_PX4_PUB
+            QOS_PROFILE_PX4_PUB,
         )
 
         self.pubs["offboard_control"] = self.create_publisher(
-            OffboardControlMode,
-            "fmu/in/offboard_control_mode",
-            QOS_PROFILE_PX4_PUB
+            OffboardControlMode, "fmu/in/offboard_control_mode", QOS_PROFILE_PX4_PUB
         )
 
         self.pubs["trajectory_setpoint"] = self.create_publisher(
-            TrajectorySetpoint,
-            "fmu/in/trajectory_setpoint",
-            QOS_PROFILE_PX4_PUB
+            TrajectorySetpoint, "fmu/in/trajectory_setpoint", QOS_PROFILE_PX4_PUB
         )
 
         self.pubs["vehicle_command"] = self.create_publisher(
-            VehicleCommand,
-            "fmu/in/vehicle_command",
-            QOS_PROFILE_PX4_PUB
+            VehicleCommand, "fmu/in/vehicle_command", QOS_PROFILE_PX4_PUB
         )
 
-    def make_cmd(self, cmd, param1 = 0.0, param2 = 0.0, param3 = 0.0, param4 = 0.0, param5 = 0.0, param6 = 0.0, param7 = 0.0):
+    def make_cmd(
+        self,
+        cmd,
+        param1=0.0,
+        param2=0.0,
+        param3=0.0,
+        param4=0.0,
+        param5=0.0,
+        param6=0.0,
+        param7=0.0,
+    ):
         msg = VehicleCommand()
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         msg.command = cmd
@@ -218,17 +243,17 @@ class Controller(Node):
         msg.from_external = True
 
         return msg
-    
+
     def _send_offboard(self):
         msg = OffboardControlMode()
         msg.position = True
         msg.velocity = False
         msg.acceleration = False
-        #msg.attitude = True
+        # msg.attitude = True
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
-        
+
         self.pubs["offboard_control"].publish(msg)
-    
+
     def cmd_takeoff(self, altitude=1.5):
         msg = self.make_cmd(22, param7=altitude)
         self.pubs["vehicle_command"].publish(msg)
@@ -264,7 +289,7 @@ class Controller(Node):
         self.pubs["vehicle_command"].publish(msg)
         if self.debug:
             print("[cmd] arm")
-    
+
     def cmd_hover(self):
         msg = self.make_cmd(17)
         self.pubs["vehicle_command"].publish(msg)
@@ -276,8 +301,6 @@ class Controller(Node):
         self.pubs["vehicle_command"].publish(msg)
         if self.debug:
             print("[cmd] hover")
-        
-
 
 
 def main(args=None):

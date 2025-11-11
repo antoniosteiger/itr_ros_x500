@@ -72,10 +72,8 @@ services:
     volumes:
       # Mount workspace sourcecode
       # Utilities:
-      - ./itr_sim_x500:/itr_ros_x500/src/itr_sim_x500:rw
       - ./itr_mocap_x500:/itr_ros_x500/src/itr_mocap_x500:rw
       - ./itr_description_x500:/itr_ros_x500/src/itr_description_x500:rw
-      - ./itr_px4_x500:/itr_ros_x500/src/itr_px4_x500:rw
       - ./itr_comms_x500:/itr_ros_x500/src/itr_comms_x500:rw
       # Main Packages:
       - ./itr_controller_x500:/itr_ros_x500/src/itr_controller_x500:rw
