@@ -45,21 +45,25 @@
 				"python.defaultInterpreterPath": "/usr/bin/python3",
 				"python.analysis.extraPaths": [
 					"/opt/ros/jazzy/lib/python3.12/site-packages",
-					"/itr_ros_x500/install/px4_msgs/lib/python3.12/site-packages",
-					"/itr_ros_x500/install/itr_controller_x500/lib/python3.12/site-packages",
-					"/itr_ros_x500/install/itr_mission_x500/lib/python3.12/site-packages",
-					"/itr_ros_x500/install/itr_mocap_x500/lib/python3.12/site-packages",
-					"/itr_ros_x500/install/itr_statemachine_x500/lib/python3.12/site-packages",
-					"/itr_ros_x500/install/itr_comms_x500/lib/python3.12/site-packages"
+					"/opt/ros/jazzy/local/lib/python3.12/dist-packages",
+					"/itr_ros_x500/build/px4_msgs/lib/python3.12/site-packages",
+					"/itr_ros_x500/build/itr_controller_x500",
+					"/itr_ros_x500/build/itr_mission_x500",
+					"/itr_ros_x500/build/itr_mocap_x500",
+					"/itr_ros_x500/build/itr_statemachine_x500",
+					"/itr_ros_x500/build/itr_comms_x500",
+					"/itr_ros_x500/build/itr_description_x500"
 				],
 				"python.autoComplete.extraPaths": [
 					"/opt/ros/jazzy/lib/python3.12/site-packages",
-					"/itr_ros_x500/install/px4_msgs/lib/python3.12/site-packages",
-					"/itr_ros_x500/install/itr_controller_x500/lib/python3.12/site-packages",
-					"/itr_ros_x500/install/itr_mission_x500/lib/python3.12/site-packages",
-					"/itr_ros_x500/install/itr_mocap_x500/lib/python3.12/site-packages",
-					"/itr_ros_x500/install/itr_statemachine_x500/lib/python3.12/site-packages",
-					"/itr_ros_x500/install/itr_comms_x500/lib/python3.12/site-packages"
+					"/opt/ros/jazzy/local/lib/python3.12/dist-packages",
+					"/itr_ros_x500/build/px4_msgs/lib/python3.12/site-packages",
+					"/itr_ros_x500/build/itr_controller_x500",
+					"/itr_ros_x500/build/itr_mission_x500",
+					"/itr_ros_x500/build/itr_mocap_x500",
+					"/itr_ros_x500/build/itr_statemachine_x500",
+					"/itr_ros_x500/build/itr_comms_x500",
+					"/itr_ros_x500/build/itr_description_x500"
 				],
 				"[python]": {
 					"editor.formatOnSave": true,

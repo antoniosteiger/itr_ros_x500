@@ -166,6 +166,31 @@ class FSM(Node):
                 self.sm.cancel_state()
 
 
+def start():
+    rclpy.init()
+    set_ros_loggers()
+
+    comms_node = Node("itr_x500_comms")
+    comms = Comms(comms_node, debug=True)
+
+    mission = Mission()
+    mission.add_state(Arm("take off", comms), "ARM", "take off", "TAKEOFF")
+    mission.add_state(Takeoff("hover", comms), "TAKEOFF", "hover", "HOVER")
+    mission.add_state(Hover(OC_MISSION_FINISHED, comms, 10), "HOVER", OC_MISSION_FINISHED, OC_MISSION_FINISHED)
+
+    fsm = FSM(mission, comms, debug=True)    
+    YasminViewerPub("ITR_X500", fsm.sm) 
+    
+    def spin_node(node: Node):
+        rclpy.spin(node)
+    
+    Thread(target=spin_node, args=(comms_node,), daemon=True).start()
+    fsm.start()
+
+    # Shutdown ROS 2 if it's running
+    if rclpy.ok():
+        rclpy.shutdown()
+
 # Execute the FSM
 def main():    
     rclpy.init()

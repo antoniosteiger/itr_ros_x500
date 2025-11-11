@@ -1,6 +1,6 @@
 import os
 from glob import glob
-from setuptools import setup
+from setuptools import setup, find_packages
 
 package_name = 'itr_statemachine_x500'
 
@@ -8,7 +8,7 @@ setup(
     name=package_name,
     version='0.0.1',
     # Packages to export
-    packages=[package_name],
+    packages=find_packages(exclude=["test"]),
     # Files we want to install, specifically launch files
     data_files=[
         # Install marker file in the package index

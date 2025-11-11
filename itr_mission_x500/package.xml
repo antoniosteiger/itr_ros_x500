@@ -9,7 +9,6 @@
 
   <depend>itr_controller_x500</depend>
   <depend>itr_statemachine_x500</depend>
-  <depend>itr_sim_x500</depend>
   <depend>itr_mocap_x500</depend>
   <depend>px4_msgs</depend>
 
