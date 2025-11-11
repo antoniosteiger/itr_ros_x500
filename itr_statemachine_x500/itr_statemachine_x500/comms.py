@@ -177,16 +177,16 @@ class Comms():
         msg = self._make_cmd_msg(cmd, param5=latitude, param6=longitude, param7=altitude)
         self._send_cmd(msg)
 
-    def cmd_takeoff(
-        self,
-        latitude: float = 0.0,
-        longitude: float = 0.0, 
-        altitude: float = DEFAULT_TAKEOFF_ALTITUDE,
-        yaw: float = 0.0
-    ):
-        cmd = VehicleCommand.VEHICLE_CMD_NAV_TAKEOFF
-        msg = self._make_cmd_msg(cmd)
-        self._send_cmd(msg)
+    # def cmd_takeoff(
+    #     self,
+    #     latitude: float = 0.0,
+    #     longitude: float = 0.0, 
+    #     altitude: float = DEFAULT_TAKEOFF_ALTITUDE,
+    #     yaw: float = 0.0
+    # ):
+    #     cmd = VehicleCommand.VEHICLE_CMD_NAV_TAKEOFF
+    #     msg = self._make_cmd_msg(cmd)
+    #     self._send_cmd(msg)
 
     def cmd_rtl(self):
         cmd = VehicleCommand.VEHICLE_CMD_NAV_RETURN_TO_LAUNCH
@@ -201,6 +201,16 @@ class Comms():
     def cmd_offboard_mode(self):
         cmd = VehicleCommand.VEHICLE_CMD_DO_SET_MODE
         msg = self._make_cmd_msg(cmd, param1=1.0, param2=6.0)
+        self._send_cmd(msg)
+    
+    def cmd_takeoff(self):
+        cmd = VehicleCommand.VEHICLE_CMD_DO_SET_MODE
+        msg = self._make_cmd_msg(cmd, param1=1.0, param2=4.0, param3=2.0)
+        self._send_cmd(msg)
+    
+    def cmd_hover(self):
+        cmd = VehicleCommand.VEHICLE_CMD_DO_SET_MODE
+        msg = self._make_cmd_msg(cmd, param1=1.0, param2=4.0, param3=3.0)
         self._send_cmd(msg)
     
     def cmd_reboot(self):

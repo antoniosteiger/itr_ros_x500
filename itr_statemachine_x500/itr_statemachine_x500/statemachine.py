@@ -1,5 +1,6 @@
 from threading import Thread
 from time import sleep
+import logging
 
 import rclpy
 from rclpy.node import Node
@@ -9,6 +10,7 @@ from px4_msgs.msg import (
     VehicleStatus
 )
 
+from yasmin import logs
 from yasmin import State
 from yasmin import StateMachine
 from yasmin import Blackboard
@@ -33,24 +35,46 @@ ST_MISSION = "MISSION"
 ST_SAFE = "SAFE STATE"
 
 
-class Mission(StateMachine):
-    def __init__(self):
-        super().__init__([OC_MISSION_FINISHED, OC_MISSION_ABORTED])
-
-class SafeState(State):
-    def __init__(self):
-        super().__init__([OC_START, OC_IDLE, OC_END])
-
-    def execute(self, blackboard: Blackboard):
-        # TODO: proper start handling
-        sleep(2)
-        return OC_START
-
-class Arm(State):
+class MissionState(State):
     def __init__(self, oc_next_state: str, comms: Comms):
         super().__init__([oc_next_state, OC_MISSION_ABORTED])
         self.oc_next_state = oc_next_state
         self.comms = comms
+    
+class Mission(StateMachine):
+    def __init__(self):
+        super().__init__([OC_MISSION_FINISHED, OC_MISSION_ABORTED])
+        
+    def add_state(self, state: MissionState, state_name:str, outcome_next: str, next_state_name: str):
+        super().add_state(
+            state_name,
+            state,
+            transitions={
+                OC_MISSION_ABORTED:OC_MISSION_ABORTED,
+                outcome_next: next_state_name
+            }
+        )
+
+class SafeState(State):
+    def __init__(self, comms: Comms):
+        super().__init__([OC_START, OC_IDLE, OC_END])
+        self.comms = comms
+        self.exit_flag = False
+    def execute(self, blackboard: Blackboard):
+        # Always send the landing command immediately
+        self.comms.cmd_rtl()
+        if self.exit_flag == False:
+            self.exit_flag = True
+            YASMIN_LOG_INFO("Starting Statemachine.")
+            sleep(2)
+            return OC_START
+        else:
+            YASMIN_LOG_INFO("Reached end, exiting state machine.")
+            return OC_END
+
+class Arm(MissionState):
+    def __init__(self, oc_next_state: str, comms: Comms):
+        super().__init__(oc_next_state, comms)
 
     def execute(self, blackboard: Blackboard):
         self.comms.cmd_set_origin()
@@ -58,35 +82,63 @@ class Arm(State):
         self.comms.cmd_arm()
         sleep(2)
         if self.comms.get_status()["arm"]:
+            YASMIN_LOG_INFO("Vehicle armed!")
             return self.oc_next_state
         else:
+            YASMIN_LOG_ERROR("Vehicle could not be armed.")
             return OC_MISSION_ABORTED
         
-class Takeoff(State):
-    def __init__(self, oc_next_state: str, comms: Comms):
-        super().__init__([oc_next_state, OC_MISSION_ABORTED])
-        self.oc_next_state = oc_next_state
-        self.comms = comms
+class Takeoff(MissionState):
+    def __init__(self, oc_next_state: str, comms: Comms, altitude: float=1.5):
+        super().__init__(oc_next_state, comms)
+        self.altitude = altitude
 
     def execute(self, blackboard: Blackboard):
         self.comms.cmd_takeoff()
-        sleep(10)
-        if True:
+        
+        max_checks = 15
+        takeoff = False
+        for i in range(max_checks):
+            if self.comms.get_position()[2] > self.altitude - 0.2:
+                takeoff = True
+                break
+            else:
+                takeoff = False
+            sleep(1)
+
+        if takeoff:
+            YASMIN_LOG_INFO("Takeoff detected.")
             return self.oc_next_state
         else:
+            YASMIN_LOG_ERROR("Could not complete takeoff!")
             return OC_MISSION_ABORTED
 
+class Hover(MissionState):
+    def __init__(self, oc_next_state: str, comms: Comms, hovertime_s: int = 10):
+        super().__init__(oc_next_state, comms)
+        self.hovertime_s = hovertime_s
+    
+    def execute(self, blackboard: Blackboard):
+        self.comms.cmd_hover()
+        
+        if self.comms.cmd_is_success():
+            YASMIN_LOG_INFO(f"Hovering for {self.hovertime_s}")
+            sleep(self.hovertime_s)
+            return self.oc_next_state
+        else:
+            YASMIN_LOG_ERROR("Could not enable hovering.")
+            return OC_MISSION_ABORTED
 
 class FSM(Node):
-    def __init__(self, mission: Mission, debug=False):
+    def __init__(self, mission: Mission, comms: Comms, debug=False):
         super().__init__("ITR_X500")
         
-        self.comms = Comms(self, debug=debug)
+        self.comms = comms
 
         self.sm = StateMachine(outcomes=[OC_END])
         self.sm.add_state(
             ST_SAFE,
-            SafeState(),
+            SafeState(comms=self.comms),
             transitions={
                 OC_END: OC_END,
                 OC_IDLE: ST_SAFE,
@@ -102,6 +154,9 @@ class FSM(Node):
             }
         )
 
+        # Make Yasmin less chatty:
+        logs.set_log_level(1)
+
     def start(self):
         try:
             outcome = self.sm()
@@ -109,7 +164,6 @@ class FSM(Node):
         except KeyboardInterrupt:
             if self.sm.is_running():
                 self.sm.cancel_state()
-
 
 
 # Execute the FSM
@@ -121,24 +175,11 @@ def main():
     comms = Comms(comms_node, debug=True)
 
     mission = Mission()
-    mission.add_state(
-        "ARM",
-        Arm("take off", comms),
-        transitions={
-            "take off": "TAKE OFF",
-            OC_MISSION_ABORTED: OC_MISSION_ABORTED
-        }
-    )
-    mission.add_state(
-        "TAKE OFF",
-        Takeoff(OC_MISSION_FINISHED, comms),
-        transitions={
-            OC_MISSION_FINISHED: OC_MISSION_FINISHED,
-            OC_MISSION_ABORTED: OC_MISSION_ABORTED
-        }
-    )
+    mission.add_state(Arm("take off", comms), "ARM", "take off", "TAKEOFF")
+    mission.add_state(Takeoff("hover", comms), "TAKEOFF", "hover", "HOVER")
+    mission.add_state(Hover(OC_MISSION_FINISHED, comms, 10), "HOVER", OC_MISSION_FINISHED, OC_MISSION_FINISHED)
 
-    fsm = FSM(mission, debug=True)    
+    fsm = FSM(mission, comms, debug=True)    
     YasminViewerPub("ITR_X500", fsm.sm) 
     
     def spin_node(node: Node):
