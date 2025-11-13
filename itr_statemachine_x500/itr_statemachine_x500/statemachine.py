@@ -1,3 +1,6 @@
+import sched
+import time
+from abc import ABC, abstractmethod
 from threading import Thread
 from time import sleep
 
@@ -14,6 +17,7 @@ from yasmin_ros import set_ros_loggers
 from yasmin_viewer import YasminViewerPub
 
 from itr_comms_x500 import Comms
+from itr_controller_x500 import Controller
 
 # Outcome Constants
 OC_END = "end"
@@ -32,10 +36,20 @@ def log(msg: str):
 
 
 class MissionState(State):
-    def __init__(self, oc_next_state: str, comms: Comms):
+    def __init__(self, oc_next_state: str):
         super().__init__([oc_next_state, OC_MISSION_ABORTED])
         self.oc_next_state = oc_next_state
-        self.comms = comms
+
+    def execute(self, blackboard: Blackboard):
+        try:
+            outcome = self.task()
+            return outcome
+        except Exception as e:
+            log(f"\033[31mException in mission state, switching to safe state!\n{e}")
+            return OC_MISSION_ABORTED
+
+    def task(self):
+        raise NotImplementedError
 
 
 class Mission(StateMachine):
@@ -80,11 +94,14 @@ class SafeState(State):
 
 class Arm(MissionState):
     def __init__(self, oc_next_state: str, comms: Comms):
-        super().__init__(oc_next_state, comms)
+        super().__init__(oc_next_state)
+        self.comms = comms
 
-    def execute(self, blackboard: Blackboard):
+    def task(self):
         self.comms.cmd_set_origin()
-        sleep(2)
+        sleep(1)
+        self.comms.cmd_hold()  # Needed to recover from other states that don't allow arming, such as safe recovery
+        sleep(1)
         self.comms.cmd_arm()
         sleep(2)
         if self.comms.get_status()["arm"]:
@@ -97,10 +114,11 @@ class Arm(MissionState):
 
 class Takeoff(MissionState):
     def __init__(self, oc_next_state: str, comms: Comms, altitude: float = 1.5):
-        super().__init__(oc_next_state, comms)
+        super().__init__(oc_next_state)
+        self.comms = comms
         self.altitude = altitude
 
-    def execute(self, blackboard: Blackboard):
+    def task(self):
         self.comms.cmd_takeoff()
 
         max_checks = 15
@@ -123,11 +141,12 @@ class Takeoff(MissionState):
 
 class Hover(MissionState):
     def __init__(self, oc_next_state: str, comms: Comms, hovertime_s: int = 10):
-        super().__init__(oc_next_state, comms)
+        super().__init__(oc_next_state)
+        self.comms = comms
         self.hovertime_s = hovertime_s
 
-    def execute(self, blackboard: Blackboard):
-        self.comms.cmd_hover()
+    def task(self):
+        self.comms.cmd_hold()
 
         if self.comms.cmd_is_success():
             log(f"Hovering for {self.hovertime_s}")
@@ -136,6 +155,54 @@ class Hover(MissionState):
         else:
             YASMIN_LOG_ERROR("Could not enable hovering.")
             return OC_MISSION_ABORTED
+
+
+class ControllerState(MissionState, ABC):
+    def __init__(
+        self,
+        oc_next_state: str,
+        controller: Controller,
+        rate: int = 50,
+    ):
+        super().__init__(oc_next_state)
+
+        self.ctrl = controller
+        self.rate = rate
+
+        self.scheduler = sched.scheduler(timefunc=time.monotonic, delayfunc=time.sleep)
+        self.period = 1 / rate
+
+        self.next_time = time.monotonic() + self.period
+
+    def ctrl_task(self):
+        obs = self.get_observation()
+        ref = self.get_reference()
+        self.ctrl(ref, obs)
+        if self.is_finished():
+            return
+        else:
+            self.next_time += self.period
+            self.scheduler.enterabs(self.next_time, 1, self.ctrl_task)
+
+    def task(self):
+        # Spin off a periodic thread with the controller and wait until it exits
+        self.next_time = time.monotonic() + self.period
+        self.scheduler.enterabs(self.next_time, 1, self.ctrl_task)
+        self.scheduler.run()
+
+        return self.oc_next_state
+
+    @abstractmethod
+    def get_observation(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_reference(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def is_finished(self):
+        raise NotImplementedError
 
 
 class FSM(Node):
@@ -166,18 +233,6 @@ class FSM(Node):
         except KeyboardInterrupt:
             if self.sm.is_running():
                 self.sm.cancel_state()
-
-
-def start(fsm: FSM, comms_node: Node):
-    def spin_node(node: Node):
-        rclpy.spin(node)
-
-    Thread(target=spin_node, args=(comms_node,), daemon=True).start()
-    fsm.start()
-
-    # Shutdown ROS 2 if it's running
-    if rclpy.ok():
-        rclpy.shutdown()
 
 
 # Execute the FSM

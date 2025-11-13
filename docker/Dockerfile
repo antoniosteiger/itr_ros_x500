@@ -49,6 +49,15 @@ RUN apt-get install -y --no-install-recommends ros-${ROS_DISTRO}-ros-gz-bridge
 # Get the PX4-models repository which has the gazebo launch helper
 RUN git clone https://github.com/PX4/PX4-gazebo-models.git
 
+# Set up a python virtual environment
+RUN mkdir -p /itr_ros_x500/src
+WORKDIR /itr_ros_x500
+COPY requirements.txt requirements.txt
+RUN apt-get install -y --no-install-recommends python3-pip python3-venv \
+ && python3 -m venv .venv \
+ && touch ./.venv/COLCON_IGNORE \
+ && ./.venv/bin/pip install -r requirements.txt
+
 # Remove display warnings
 RUN mkdir /tmp/runtime-root
 ENV XDG_RUNTIME_DIR "/tmp/runtime-root"
@@ -99,11 +108,11 @@ RUN apt-get install -y --no-install-recommends ros-${ROS_DISTRO}-yasmin ros-${RO
 FROM base AS overlay
 
 # Create Colcon workspace with util dependencies
-RUN mkdir -p /itr_ros_x500/src
+
 WORKDIR /itr_ros_x500
 
 # Get Source Code:
-RUN git clone --branch v0.1.0 https://github.com/antoniosteiger/itr_ros_x500.git ./src \
+RUN git clone --branch v0.1.5 https://github.com/antoniosteiger/itr_ros_x500.git ./src \
  && rm -rf ./src/docker \
  && rm ./src/docker-compose.yml
 

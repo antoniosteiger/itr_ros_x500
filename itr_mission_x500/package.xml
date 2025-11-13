@@ -11,6 +11,7 @@
   <depend>itr_statemachine_x500</depend>
   <depend>itr_mocap_x500</depend>
   <depend>itr_comms_x500</depend>
+  <depend>itr_description_x500</depend>
   <depend>px4_msgs</depend>
   <depend>yasmin</depend>
   <depend>rclpy</depend>

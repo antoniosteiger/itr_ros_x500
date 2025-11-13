@@ -15,9 +15,13 @@ from rclpy.subscription import Subscription
 
 from px4_msgs.msg import (
     OffboardControlMode,
+    TrajectorySetpoint,
     VehicleCommand,
     VehicleCommandAck,
+    VehicleOdometry,
     VehicleStatus,
+    VehicleThrustSetpoint,
+    VehicleTorqueSetpoint,
 )
 
 POSE_TOPIC = "/pose"
@@ -44,15 +48,17 @@ class Status(TypedDict):
     checks: bool
 
 
-class Comms:
-    def __init__(self, node: Node, debug=False):
-        self.node = node
+class Comms(Node):
+    def __init__(self, debug=False):
+        super().__init__("itr_comms_x500")
 
         self._pubs: dict[str, Publisher] = {}
         self._subs: dict[str, Subscription] = {}
 
         self.position = np.array([0.0, 0.0, 0.0])
+        self.velocity = np.array([0.0, 0.0, 0.0])
         self.orientation = np.array([0.0, 0.0, 0.0, 1.0])
+        self.angular_velocity = np.array([0.0, 0.0, 0.0])
         self.status: Status = {
             "nav": VehicleStatus.NAVIGATION_STATE_MAX,
             "arm": VehicleStatus.ARMING_STATE_DISARMED,
@@ -70,14 +76,14 @@ class Comms:
         self.debug = debug
 
     def _log(self, msg: str):
-        # self.node.get_logger().info(f"\033[35m{msg}")
+        # self.get_logger().info(f"\033[35m{msg}")
         print(f"\033[35m[ITR_COMMS]: {msg}")
 
     def _get_timestamp(self):
-        return int(self.node.get_clock().now().nanoseconds / 1000)
+        return int(self.get_clock().now().nanoseconds / 1000)
 
     def _make_sub(self, type, topic: str, callback: Callable):
-        self._subs[topic] = self.node.create_subscription(
+        self._subs[topic] = self.create_subscription(
             type,
             topic,
             callback,
@@ -91,6 +97,9 @@ class Comms:
         )
         self._make_sub(
             VehicleCommandAck, "/fmu/out/vehicle_command_ack", self._cmd_ack_callback
+        )
+        self._make_sub(
+            VehicleOdometry, "/fmu/out/vehicle_odometry", self._odometry_callback
         )
 
     def _pose_callback(self, msg: Odometry):
@@ -121,21 +130,39 @@ class Comms:
             else:
                 self._log(f"Command {self._cmd_ack_id} FAILED.")
 
+    def _odometry_callback(self, msg: VehicleOdometry):
+        self.velocity[0] = msg.velocity[0]
+        self.velocity[1] = msg.velocity[1]
+        self.velocity[2] = msg.velocity[2]
+
+        self.angular_velocity[0] = msg.angular_velocity[0]
+        self.angular_velocity[1] = msg.angular_velocity[1]
+        self.angular_velocity[2] = msg.angular_velocity[2]
+
     def get_position(self) -> npt.NDArray[np.float64]:
         return self.position
 
+    def get_velocity(self) -> npt.NDArray[np.float64]:
+        return self.velocity
+
     def get_orientation(self) -> npt.NDArray[np.float64]:
         return self.orientation
+
+    def get_angular_velocity(self) -> npt.NDArray[np.float64]:
+        return self.angular_velocity
 
     def get_status(self) -> Status:
         return self.status
 
     def _make_pub(self, type, topic: str):
-        self._pubs[topic] = self.node.create_publisher(type, topic, QOS_PROFILE_PX4_PUB)
+        self._pubs[topic] = self.create_publisher(type, topic, QOS_PROFILE_PX4_PUB)
 
     def _init_pubs(self):
         self._make_pub(VehicleCommand, "/fmu/in/vehicle_command")
         self._make_pub(OffboardControlMode, "/fmu/in/offboard_control_mode")
+        self._make_pub(VehicleThrustSetpoint, "/fmu/in/vehicle_thrust_setpoint")
+        self._make_pub(VehicleTorqueSetpoint, "/fmu/in/vehicle_torque_setpoint")
+        self._make_pub(TrajectorySetpoint, "/fmu/in/trajectory_setpoint")
 
     def _make_cmd_msg(
         self,
@@ -211,7 +238,7 @@ class Comms:
         msg = self._make_cmd_msg(cmd, param1=1.0, param2=4.0, param3=2.0)
         self._send_cmd(msg)
 
-    def cmd_hover(self):
+    def cmd_hold(self):
         cmd = VehicleCommand.VEHICLE_CMD_DO_SET_MODE
         msg = self._make_cmd_msg(cmd, param1=1.0, param2=4.0, param3=3.0)
         self._send_cmd(msg)
@@ -268,3 +295,24 @@ class Comms:
                 msg.direct_actuator = True
 
         self._pubs["/fmu/in/offboard_control_mode"].publish(msg)
+
+    def send_thrust_setpoint(self, setpoint: npt.NDArray[np.float64]):
+        msg = VehicleThrustSetpoint()
+        msg.timestamp = self._get_timestamp()
+        msg.timestamp_sample = self._get_timestamp()
+        setpoint = setpoint / 10
+        msg.xyz = np.array([0.0, 0.0, setpoint])  # TODO: thrust normalization
+        self._pubs["/fmu/in/vehicle_thrust_setpoint"].publish(msg)
+
+    def send_torque_setpoint(self, setpoint: npt.NDArray[np.float64]):
+        msg = VehicleTorqueSetpoint()
+        msg.timestamp = self._get_timestamp()
+        msg.timestamp_sample = self._get_timestamp()
+        msg.xyz = setpoint  # TODO: Torque normalization
+        self._pubs["/fmu/in/vehicle_torque_setpoint"].publish(msg)
+
+    def send_velocity_setpoint(self, setpoint: npt.NDArray[np.float64]):
+        msg = TrajectorySetpoint()
+        msg.timestamp = self._get_timestamp()
+        msg.velocity = setpoint
+        self._pubs["/fmu/in/trajectory_setpoint"]

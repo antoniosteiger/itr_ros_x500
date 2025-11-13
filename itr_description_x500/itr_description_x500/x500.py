@@ -1,0 +1,128 @@
+from abc import ABC
+from dataclasses import dataclass
+from typing import Literal
+
+import numpy as np
+from numpy import typing as npt
+from scipy.signal import cont2discrete
+from scipy.sparse import csr_matrix
+
+
+class LTI(ABC):
+    """
+    Linear Time-Invariant system base class.
+    Generates discrete and sparse versions of all system matrices automatically.
+    """
+
+    def __init__(
+        self,
+        A: npt.NDArray[np.float64],
+        B: npt.NDArray[np.float64],
+        C: npt.NDArray[np.float64],
+        D: npt.NDArray[np.float64],
+        d_t: float = 0.01,
+        d_method: Literal[
+            "zoh", "gbt", "bilinear", "euler", "backward_diff", "foh", "impulse"
+        ] = "zoh",
+    ):
+        """
+        Initialize linear time-invariant base class.
+
+        Args:
+            A (npt.NDArray[np.float64]): State matrix
+            B (npt.NDArray[np.float64]): Input matrix
+            C (npt.NDArray[np.float64]): Output matrix
+            D (npt.NDArray[np.float64]): Direct transmission matrix
+            d_t (float, optional): Discretization time-interval in seconds. Defaults to 0.01
+            d_method (float, optional): Discretization method. Defaults to "zoh"
+        """
+        self.A = A
+        self.B = B
+        self.C = C
+        self.D = D
+        self.Ad, self.Bd, self.Cd, self.Dd = self._make_discrete_matrices(
+            self.A, self.B, self.C, self.D, d_t, d_method
+        )
+        self.A_sparse, self.B_sparse, self.C_sparse, self.D_sparse = (
+            self._make_sparse_matrices(self.A, self.B, self.C, self.D)
+        )
+        self.Ad_sparse, self.Bd_sparse, self.Cd_sparse, self.Dd_sparse = (
+            self._make_sparse_matrices(self.Ad, self.Bd, self.Cd, self.Dd)
+        )
+
+    def _make_sparse_matrices(self, A, B, C, D):
+        A_sparse = csr_matrix(self.A)
+        B_sparse = csr_matrix(self.B)
+        C_sparse = csr_matrix(self.C)
+        D_sparse = csr_matrix(self.D)
+
+        return A_sparse, B_sparse, C_sparse, D_sparse
+
+    def _make_discrete_matrices(self, A, B, C, D, dt, d_method):
+        Ad, Bd, Cd, Dd, _ = cont2discrete((A, B, C, D), dt, method=d_method)
+
+        return Ad, Bd, Cd, Dd
+
+
+@dataclass
+class QuadcopterParameters:
+    g: float
+    mass: float
+    I_x: float
+    I_y: float
+    I_z: float
+
+
+class Quadcopter(LTI):
+    def __init__(self, params: QuadcopterParameters, d_t: float = 0.01):
+        # For Matrix Definitions see: https://arxiv.org/pdf/1908.07401
+
+        A = np.zeros((12, 12))
+        A[0, 3] = 1
+        A[1, 4] = 1
+        A[2, 5] = 1
+        A[3, 7] = -params.g
+        A[4, 6] = params.g
+        A[6, 9] = 1
+        A[7, 10] = 1
+        A[8, 11] = 1
+
+        B = np.zeros((12, 4))
+        B[4, 0] = 1 / params.mass
+        B[9, 1] = 1 / params.I_x
+        B[10, 2] = 1 / params.I_y
+        B[11, 3] = 1 / params.I_z
+
+        C = np.identity(12)
+        D = np.zeros((12, 4))
+
+        super().__init__(A, B, C, D, d_t)
+
+
+X500 = QuadcopterParameters(
+    g=9.807232,  # m/s²
+    mass=0.7,  # kg
+    # For Inertia Values see: https://www.mdpi.com/2226-4310/8/11/355
+    I_x=0.018636482,  # Pitch kgm^2
+    I_y=0.020027499,  # Roll kgm²
+    I_z=0.02788,  # Yaw kgm2
+)
+
+
+@dataclass
+class DoubleIntegratorParameters:
+    k_v: float
+
+
+class DoubleIntegrator(LTI):
+    def __init__(self, params: DoubleIntegratorParameters, d_t: float = 0.01):
+        A = np.zeros((6, 6))
+        A[0:3, 3:6] = np.identity(3)
+
+        B = np.zeros((6, 3))
+        B[3:6, :] = params.k_v * np.identity(3)
+
+        C = np.identity(6)
+        D = np.zeros((6, 6))
+
+        super().__init__(A, B, C, D, d_t)

@@ -22,7 +22,7 @@ setup(
             glob(os.path.join("launch", "*.launch.py")),
         ),
     ],
-    install_requires=["setuptools", "py_trees"],
+    install_requires=["setuptools"],
     zip_safe=True,
     author="Antonio Steiger",
     author_email="antonio.steiger@tum.de",

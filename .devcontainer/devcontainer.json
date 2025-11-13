@@ -34,7 +34,7 @@
 	// "postCreateCommand": "cat /etc/os-release",
 
 	// Configure tool-specific properties.
-	"postCreateCommand": "bash -c 'source /opt/ros/$ROS_DISTRO/setup.bash && source install/setup.bash'",
+	"postCreateCommand": "source /itr_ros_x500/.venv/bin/activate && source /opt/ros/$ROS_DISTRO/setup.bash && source ./install/local_setup.bash",
 	"customizations": {
 		"vscode": {
 			"extensions": [
@@ -43,10 +43,11 @@
 				"njpwerner.autodocstring"
 			],
 			"settings": {
-				"python.defaultInterpreterPath": "/usr/bin/python3",
+				"python.defaultInterpreterPath": "/itr_ros_x500/.venv/bin/python3",
 				"python.analysis.extraPaths": [ // For info: https://picknik.ai/vscode/docker/ros2/2024/01/23/ROS2-and-VSCode.html#working-in-python
 					"/opt/ros/jazzy/lib/python3.12/site-packages",
 					"/opt/ros/jazzy/local/lib/python3.12/dist-packages",
+					"/itr_ros_x500/.venv/lib/python3.12/site-packages",
 					"/itr_ros_x500/install/px4_msgs/lib/python3.12/site-packages",
 					"/itr_ros_x500/build/itr_controller_x500",
 					"/itr_ros_x500/build/itr_mission_x500",
@@ -58,6 +59,7 @@
 				"python.autoComplete.extraPaths": [
 					"/opt/ros/jazzy/lib/python3.12/site-packages",
 					"/opt/ros/jazzy/local/lib/python3.12/dist-packages",
+					"/itr_ros_x500/.venv/lib/python3.12/site-packages",
 					"/itr_ros_x500/install/px4_msgs/lib/python3.12/site-packages",
 					"/itr_ros_x500/build/itr_controller_x500",
 					"/itr_ros_x500/build/itr_mission_x500",
