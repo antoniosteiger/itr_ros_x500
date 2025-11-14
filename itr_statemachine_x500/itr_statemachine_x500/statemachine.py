@@ -32,7 +32,7 @@ ST_SAFE = "SAFE STATE"
 
 
 def log(msg: str):
-    print(f"\033[34m[ITR_STATEMACHINE]: {msg} \n")
+    print(f"\033[34m[ITR_STATEMACHINE]: {msg} \033[0m")
 
 
 class MissionState(State):
@@ -162,35 +162,51 @@ class ControllerState(MissionState, ABC):
         self,
         oc_next_state: str,
         controller: Controller,
+        comms: Comms,
         rate: int = 50,
+        debug=False,
     ):
         super().__init__(oc_next_state)
 
-        self.ctrl = controller
-        self.rate = rate
+        self._ctrl = controller
+        self.comms = comms
+        self._rate = rate
+        self._debug = debug
 
-        self.scheduler = sched.scheduler(timefunc=time.monotonic, delayfunc=time.sleep)
-        self.period = 1 / rate
+        self._scheduler = sched.scheduler(timefunc=time.monotonic, delayfunc=time.sleep)
+        self._period = 1 / rate
 
-        self.next_time = time.monotonic() + self.period
+        self._next_time = time.monotonic() + self._period
+        self.step = 0
 
-    def ctrl_task(self):
+    def _ctrl_task(self):
         obs = self.get_observation()
         ref = self.get_reference()
-        self.ctrl(ref, obs)
+        self._ctrl(ref, obs)
         if self.is_finished():
             return
         else:
-            self.next_time += self.period
-            self.scheduler.enterabs(self.next_time, 1, self.ctrl_task)
+            self.step += 1
+            self._next_time += self._period
+            self._scheduler.enterabs(self._next_time, 1, self._ctrl_task)
 
     def task(self):
+        # Call the init_hook before the controller starts
+        self.init_hook()
         # Spin off a periodic thread with the controller and wait until it exits
-        self.next_time = time.monotonic() + self.period
-        self.scheduler.enterabs(self.next_time, 1, self.ctrl_task)
-        self.scheduler.run()
+        self._next_time = time.monotonic() + self._period
+        self._scheduler.enterabs(self._next_time, 1, self._ctrl_task)
+        self._scheduler.run()
 
+        # Call the end hook after the controller finished
+        self.exit_hook()
         return self.oc_next_state
+
+    def init_hook(self):
+        return
+
+    def exit_hook(self):
+        return
 
     @abstractmethod
     def get_observation(self):

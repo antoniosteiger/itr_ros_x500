@@ -77,7 +77,7 @@ class Comms(Node):
 
     def _log(self, msg: str):
         # self.get_logger().info(f"\033[35m{msg}")
-        print(f"\033[35m[ITR_COMMS]: {msg}")
+        print(f"\033[35m[ITR_COMMS]: {msg} \033[0m")
 
     def _get_timestamp(self):
         return int(self.get_clock().now().nanoseconds / 1000)
@@ -295,6 +295,8 @@ class Comms(Node):
                 msg.direct_actuator = True
 
         self._pubs["/fmu/in/offboard_control_mode"].publish(msg)
+        if self.debug:
+            self._log("Sent offboard keepalive message.")
 
     def send_thrust_setpoint(self, setpoint: npt.NDArray[np.float64]):
         msg = VehicleThrustSetpoint()
@@ -316,3 +318,6 @@ class Comms(Node):
         msg.timestamp = self._get_timestamp()
         msg.velocity = setpoint
         self._pubs["/fmu/in/trajectory_setpoint"]
+
+        if self.debug:
+            self._log(f"Sent velocity setpoint {setpoint}")

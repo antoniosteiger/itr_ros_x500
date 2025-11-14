@@ -34,7 +34,7 @@ class Controller(ABC):
     #     raise NotImplementedError
 
     def _log(self, msg: str):
-        print(f"\033[32m[ITR_CONTROL]: {msg}")
+        print(f"\033[32m[ITR_CONTROL]: {msg} \033[0m")
 
 
 def main(args=None):

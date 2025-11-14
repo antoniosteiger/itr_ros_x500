@@ -4,133 +4,22 @@ from threading import Thread
 
 import rclpy
 from rclpy.node import Node
-from scipy.spatial.transform import Rotation
 
 from itr_comms_x500 import Comms
-from itr_controller_x500 import Controller
 from itr_statemachine_x500 import (
     FSM,
     OC_MISSION_FINISHED,
     Arm,
-    ControllerState,
     Hover,
     Mission,
     Takeoff,
 )
 
-
-def quat2euler(quat):
-    r = Rotation.from_quat(quat)
-    euler = r.as_euler("xyz", degrees=True)
-    return euler
+DEBUG_FLAG = False
 
 
-# class MPCState(MissionState):
-#     def __init__(
-#         self,
-#         oc_next_state: str,
-#         comms: Comms,
-#         reference,
-#         interval_s: float,
-#         horizon: int = 20,
-#     ):
-#         super().__init__(oc_next_state, comms)
-
-#         model = Quadcopter(X500, interval_s)
-
-#         Q = np.diag([1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-#         R = np.diag([1.0, 0.5, 0.5, 0.5])
-#         self.horizon = horizon
-#         self.ctrl = MPC(model.Ad_sparse, model.Bd_sparse, Q, R, horizon, debug=True)
-
-#         self.ref = reference
-
-#         self.active = False
-
-#     def task(self):
-#         step = 0
-#         self.comms.offboard_keepalive("thrust_and_torque")
-#         self.comms.offboard_keepalive("thrust_and_torque")
-#         self.comms.cmd_offboard_mode()
-
-#         if self.comms.cmd_is_success():
-#             pass
-#         else:
-#             return OC_MISSION_ABORTED
-#         while True:
-#             obs = np.zeros(12)
-#             obs[0:3] = self.comms.get_position()
-#             obs[3:6] = self.comms.get_velocity()
-#             obs[6:9] = quat2euler(self.comms.get_orientation())
-#             obs[9:12] = self.comms.get_angular_velocity()
-
-#             if step * self.horizon + self.horizon > len(self.ref.T):
-#                 self.active = False
-#                 print("test")
-#                 return self.oc_next_state
-#             else:
-#                 ref = self.ref[
-#                     :, step * self.horizon : step * self.horizon + self.horizon
-#                 ]
-#                 action = self.ctrl(ref, obs)
-#                 self.comms.send_thrust_setpoint(action[0])
-#                 self.comms.send_torque_setpoint(action[1:4])
-#                 self.comms.offboard_keepalive("thrust_and_torque")
-#                 step += 1
-
-
-class NothingController(Controller):
-    def __init__(self):
-        return
-
-    def __call__(self, ref, obs):
-        self._log("Hello from NothingController")
-
-
-class NothingControllerState(ControllerState):
-    def __init__(self, oc_next_state: str, comms: Comms):
-        super().__init__(oc_next_state, NothingController(), 1)
-        self.comms = comms
-        self.counter = 0
-        self.max = 100
-
-    def get_observation(self):
-        self.comms.get_position()
-        return None
-
-    def get_reference(self):
-        self.counter += 1
-        return None
-
-    def is_finished(self):
-        if self.counter >= self.max:
-            return True
-        else:
-            return False
-
-
-def nothing_mission():
-    rclpy.init()
-
-    comms = Comms(debug=True)
-
-    mission = Mission()
-    mission.add_state(Arm("take off", comms), "ARM", "take off", "TAKEOFF")
-    mission.add_state(Takeoff("hover", comms), "TAKEOFF", "hover", "HOVER")
-    mission.add_state(
-        Hover("start controller", comms, 2), "HOVER", "start controller", "CONTROLLER"
-    )
-    mission.add_state(
-        NothingControllerState(OC_MISSION_FINISHED, comms),
-        "CONTROLLER",
-        OC_MISSION_FINISHED,
-        OC_MISSION_FINISHED,
-    )
-
-    fsm = FSM(mission, comms, debug=True)
-
-    launch(fsm, comms)
-    return
+def log(msg: str):
+    print(f"\033[33m[ITR_MISSION]: {msg} \033[0m")
 
 
 def handle_interrupt(signum, frame, comms: Comms):
@@ -138,7 +27,7 @@ def handle_interrupt(signum, frame, comms: Comms):
     Handle Ctrl+C (SIGINT) signal before ROS shuts down.
     This function sends the RTL command and then shuts down ROS gracefully.
     """
-    print("\nAbort detected, landing drone...")
+    log("ABORT DETECTED, landing drone...")
     # Send RTL (Return to Launch) command to land the drone
     comms.cmd_rtl()
 
@@ -150,7 +39,75 @@ def handle_interrupt(signum, frame, comms: Comms):
     sys.exit(0)
 
 
-def launch(fsm: FSM, comms: Comms):
+def initialize(debug: bool = False) -> None:
+    """
+    Initialize the Drone Mission.
+
+    Args:
+        debug (bool, optional): A debug flag. If true,
+                                communication layer and state machine will log
+                                diagnostic information to the terminal.
+                                Defaults to False.
+    """
+    global DEBUG_FLAG
+    DEBUG_FLAG = debug
+    rclpy.init()
+
+
+def make_comms() -> Comms:
+    """
+    Create the communication layer for the drone.
+    This layer is run in a separate thread.
+
+    Returns:
+        Comms: A Comms instance (communication layer interface, see itr_comms_x500)
+    """
+    return Comms(DEBUG_FLAG)
+
+
+def make_mission() -> Mission:
+    """
+    Create the main mission for the drone.
+    Add states to the mission like this:
+    mission = make_mission()
+    mission.add_state(...)
+
+    Returns:
+        Mission: A Mission Instance. (see itr_statemachine_x500)
+    """
+    return Mission()
+
+
+def make_fsm(mission: Mission, comms: Comms) -> FSM:
+    """
+    Create a finite state machine for the drone.
+    By default, it has a mission (which is itself a state machine)
+    and a safe state. Should anything go wrong, the state machine
+    automatically returns to the safe state, which lands the drone.
+    The state machine can be monitored in the browser using the YASMIN
+    viewer.
+
+    Args:
+        mission (Mission): a Mission instance. Describes the main states the drone shall go through.
+        comms (Comms):
+
+    Returns:
+        FSM: A YASMIN finite state machine.
+    """
+    return FSM(mission, comms, debug=DEBUG_FLAG)
+
+
+def launch(fsm: FSM, comms: Comms) -> None:
+    """
+    Start the Drone Mission.
+    Main Entry Point to anything you want to do with the X500 Drone at ITR.
+    Press Ctrl+C in the terminal to abort the mission. The drone will immediately return
+    to its home position.
+
+    Args:
+        fsm (FSM): Finite state machine for the drone created with make_fsm()
+        comms (Comms): Communication layer for the drone created with make_comms()
+    """
     # land the drone on ctrl+c
     signal.signal(
         signal.SIGINT, lambda signum, frame: handle_interrupt(signum, frame, comms)
@@ -160,10 +117,11 @@ def launch(fsm: FSM, comms: Comms):
         rclpy.spin(node)
 
     try:
+        log("Starting Mission...")
         Thread(target=spin_node, args=(comms,), daemon=True).start()
         fsm.start()
     except Exception as e:
-        print(f"Exception raised:\n{e}")
+        log(f"Exception raised:\n{e}")
         # Send RTL command:
         comms.cmd_rtl()
     finally:
@@ -171,14 +129,22 @@ def launch(fsm: FSM, comms: Comms):
             rclpy.shutdown()
 
 
-def mission_basic():
-    rclpy.init()
+def _basic_mission():
+    # Initialize the Mission Environment
+    initialize(debug=True)
 
-    comms = Comms(debug=True)
+    # Create a Communication Layer to the Drone
+    comms = make_comms()
 
-    mission = Mission()
+    # Create an empty Mission
+    mission = make_mission()
+
+    # Add States to the Mission in Sequence
+    # Arm the Drone
     mission.add_state(Arm("take off", comms), "ARM", "take off", "TAKEOFF")
+    # Let the drone take off
     mission.add_state(Takeoff("hover", comms), "TAKEOFF", "hover", "HOVER")
+    # Let the drone hover for five seconds
     mission.add_state(
         Hover(OC_MISSION_FINISHED, comms, 5),
         "HOVER",
@@ -186,14 +152,16 @@ def mission_basic():
         OC_MISSION_FINISHED,
     )
 
-    fsm = FSM(mission, comms, debug=True)
+    # Create a State Machine with the Mission
+    fsm = make_fsm(mission, comms)
 
+    # Start the Mission
     launch(fsm, comms)
     return
 
 
 def main():
-    nothing_mission()
+    _basic_mission()
     return
 
 
