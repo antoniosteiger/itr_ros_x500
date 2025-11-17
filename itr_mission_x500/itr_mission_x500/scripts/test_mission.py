@@ -1,5 +1,3 @@
-from time import sleep
-
 import numpy as np
 
 from itr_comms_x500 import Comms
@@ -12,19 +10,42 @@ from itr_statemachine_x500 import (
     Hover,
     Takeoff,
 )
+from px4_msgs.msg import VehicleStatus
 
 
 class NothingController(Controller):
     def __init__(self, comms: Comms):
         self.comms = comms
+        self.offboard_setpoint_counter = 0
         return
 
     def __call__(self, ref, obs):
         # Always send offboard keepalive
-        self.comms.offboard_keepalive("velocity")
-        self.comms.send_velocity_setpoint(np.array([0.0, 0.0, 0.0]))
+        if self.comms.get_status()["nav"] == VehicleStatus.NAVIGATION_STATE_AUTO_LOITER:
+            self.comms.offboard_keepalive("position")
+            self.comms.cmd_offboard_mode()
+            # self.comms.send_position_setpoint(np.array([0.0, 0.0, -1.5]))
+        # if self.offboard_setpoint_counter == 40:
+        #     self.comms.send_position_setpoint(np.array([0.0, 0.0, -2.0]))
+        #     self.comms.cmd_offboard_mode()
 
-        self._log("Hello from NothingController")
+        if self.comms.get_status()["nav"] == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+            self.comms.offboard_keepalive("position")
+            self.comms.send_position_setpoint(np.array([0.0, 0.0, -0.75]))
+
+        # if self.offboard_setpoint_counter == 25:
+        #     # self.comms.send_position_setpoint(np.array([0.0, 0.0, -1.5]))
+        #     # self.comms.cmd_manual_position_mode()
+        #     self.comms.cmd_offboard_mode()
+        # if self.offboard_setpoint_counter == 26:
+        # self.comms.offboard_keepalive("position")
+        # self.comms.send_position_setpoint(self.comms.get_position())
+
+        # if self.comms.get_status()["nav"] == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+        # self.comms.send_position_setpoint(np.array([0.0, 0.0, -0.75]))
+
+        # if self.offboard_setpoint_counter < 41:
+        #     self.offboard_setpoint_counter += 1
 
 
 class NothingControllerState(ControllerState):
@@ -52,22 +73,6 @@ class NothingControllerState(ControllerState):
         else:
             return False
 
-    def init_hook(self):
-        i = 0
-        while i <= 8:
-            sleep(0.2)
-            self.comms.offboard_keepalive("velocity")
-            self.comms.send_velocity_setpoint(np.array([0.0, 0.0, -0.2]))
-            i += 1
-
-        self.comms.cmd_offboard_mode()
-
-        if self.comms.cmd_is_success():
-            return
-        else:
-            print("FAIL FAIL FAIL")
-            raise Exception("Failed to enable offboard control mode.")
-
 
 def nothing_mission():
     initialize(debug=True)
@@ -76,12 +81,14 @@ def nothing_mission():
 
     mission = make_mission()
     mission.add_state(Arm("take off", comms), "ARM", "take off", "TAKEOFF")
-    mission.add_state(Takeoff("hover", comms), "TAKEOFF", "hover", "HOVER")
     mission.add_state(
-        Hover("start controller", comms, 2), "HOVER", "start controller", "CONTROLLER"
+        Takeoff("takeoff completed", comms), "TAKEOFF", "takeoff completed", "HOVER"
     )
     mission.add_state(
-        NothingControllerState(OC_MISSION_FINISHED, comms, rate=10, max_steps=100),
+        Hover("hover completed", comms, 2), "HOVER", "hover completed", "CONTROLLER"
+    )
+    mission.add_state(
+        NothingControllerState(OC_MISSION_FINISHED, comms, rate=20, max_steps=100000),
         "CONTROLLER",
         OC_MISSION_FINISHED,
         OC_MISSION_FINISHED,

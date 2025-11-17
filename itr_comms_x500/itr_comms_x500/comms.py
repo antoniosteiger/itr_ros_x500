@@ -3,6 +3,17 @@ from typing import Callable, Literal, TypedDict
 import numpy as np
 import numpy.typing as npt
 from nav_msgs.msg import Odometry
+from px4_msgs.msg import (
+    OffboardControlMode,
+    TrajectorySetpoint,
+    VehicleAttitudeSetpoint,
+    VehicleCommand,
+    VehicleCommandAck,
+    VehicleOdometry,
+    VehicleStatus,
+    VehicleThrustSetpoint,
+    VehicleTorqueSetpoint,
+)
 from rclpy.node import Node
 from rclpy.publisher import Publisher
 from rclpy.qos import (
@@ -12,17 +23,6 @@ from rclpy.qos import (
     QoSReliabilityPolicy,
 )
 from rclpy.subscription import Subscription
-
-from px4_msgs.msg import (
-    OffboardControlMode,
-    TrajectorySetpoint,
-    VehicleCommand,
-    VehicleCommandAck,
-    VehicleOdometry,
-    VehicleStatus,
-    VehicleThrustSetpoint,
-    VehicleTorqueSetpoint,
-)
 
 POSE_TOPIC = "/pose"
 DEFAULT_TAKEOFF_ALTITUDE = 1.5
@@ -163,6 +163,7 @@ class Comms(Node):
         self._make_pub(VehicleThrustSetpoint, "/fmu/in/vehicle_thrust_setpoint")
         self._make_pub(VehicleTorqueSetpoint, "/fmu/in/vehicle_torque_setpoint")
         self._make_pub(TrajectorySetpoint, "/fmu/in/trajectory_setpoint")
+        self._make_pub(VehicleAttitudeSetpoint, "/fmu/in/vehicle_attitude_setpoint")
 
     def _make_cmd_msg(
         self,
@@ -317,7 +318,21 @@ class Comms(Node):
         msg = TrajectorySetpoint()
         msg.timestamp = self._get_timestamp()
         msg.velocity = setpoint
-        self._pubs["/fmu/in/trajectory_setpoint"]
+        self._pubs["/fmu/in/trajectory_setpoint"].publish(msg)
 
         if self.debug:
             self._log(f"Sent velocity setpoint {setpoint}")
+
+    def send_position_setpoint(self, setpoint: npt.NDArray[np.float64]):
+        msg = TrajectorySetpoint()
+        msg.timestamp = self._get_timestamp()
+        msg.position = setpoint
+        msg.yaw = 1.57079  # 90 degrees
+        self._pubs["/fmu/in/trajectory_setpoint"].publish(msg)
+
+    def send_attitude_setpoint(self, setpoint: npt.NDArray[np.float64]):
+        msg = VehicleAttitudeSetpoint()
+        msg.timestamp = self._get_timestamp()
+        msg.thrust_body = [0.0, 0.0, 0.55]
+        msg.q_d = setpoint
+        self._pubs["/fmu/in/vehicle_attitude_setpoint"].publish(msg)

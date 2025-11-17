@@ -18,6 +18,7 @@ from yasmin_viewer import YasminViewerPub
 
 from itr_comms_x500 import Comms
 from itr_controller_x500 import Controller
+from px4_msgs.msg import VehicleStatus
 
 # Outcome Constants
 OC_END = "end"
@@ -122,21 +123,19 @@ class Takeoff(MissionState):
         self.comms.cmd_takeoff()
 
         max_checks = 15
-        takeoff = False
-        for i in range(max_checks):
-            if self.comms.get_position()[2] > self.altitude - 0.2:
-                takeoff = True
-                break
-            else:
-                takeoff = False
-            sleep(1)
+        check_count = 0
+        sleep(3)
+        while (
+            self.comms.get_status()["nav"] != VehicleStatus.NAVIGATION_STATE_AUTO_LOITER
+        ):
+            check_count += 1
+            sleep(0.2)
+            if check_count >= max_checks:
+                YASMIN_LOG_ERROR("Could not complete takeoff!")
+                return OC_MISSION_ABORTED
 
-        if takeoff:
-            log("Takeoff detected.")
-            return self.oc_next_state
-        else:
-            YASMIN_LOG_ERROR("Could not complete takeoff!")
-            return OC_MISSION_ABORTED
+        log("Takeoff Completed.")
+        return self.oc_next_state
 
 
 class Hover(MissionState):
