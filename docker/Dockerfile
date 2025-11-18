@@ -112,7 +112,7 @@ FROM base AS overlay
 WORKDIR /itr_ros_x500
 
 # Get Source Code:
-RUN git clone --branch v0.1.5 https://github.com/antoniosteiger/itr_ros_x500.git ./src \
+RUN git clone --branch v0.1.6 https://github.com/antoniosteiger/itr_ros_x500.git ./src \
  && rm -rf ./src/docker \
  && rm ./src/docker-compose.yml
 
