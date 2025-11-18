@@ -10,28 +10,22 @@ from itr_statemachine_x500 import (
     Hover,
     Takeoff,
 )
-from px4_msgs.msg import VehicleStatus
 
 
 class NothingController(Controller):
     def __init__(self, comms: Comms):
         self.comms = comms
         self.offboard_setpoint_counter = 0
+        self.step = 0
         return
 
     def __call__(self, ref, obs):
-        # Always send offboard keepalive
-        if self.comms.get_status()["nav"] == VehicleStatus.NAVIGATION_STATE_AUTO_LOITER:
-            self.comms.offboard_keepalive("position")
-            self.comms.cmd_offboard_mode()
-            # self.comms.send_position_setpoint(np.array([0.0, 0.0, -1.5]))
-        # if self.offboard_setpoint_counter == 40:
-        #     self.comms.send_position_setpoint(np.array([0.0, 0.0, -2.0]))
-        #     self.comms.cmd_offboard_mode()
+        # Always send offboard
 
-        if self.comms.get_status()["nav"] == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-            self.comms.offboard_keepalive("position")
-            self.comms.send_position_setpoint(np.array([0.0, 0.0, -0.75]))
+        # The ControllerState in the state machine executes this in a regular interval
+        # and ensures the drone is in the offboard mode that enables external setpoints
+        # Slowly lower the altitude
+        self.comms.send_position_setpoint(np.array([0.0, 0.0, 0.001 * self.step]))
 
         # if self.offboard_setpoint_counter == 25:
         #     # self.comms.send_position_setpoint(np.array([0.0, 0.0, -1.5]))
@@ -53,7 +47,7 @@ class NothingControllerState(ControllerState):
         self, oc_next_state: str, comms: Comms, rate: int = 1, max_steps: int = 10
     ):
         super().__init__(
-            oc_next_state, NothingController(comms), comms, rate, debug=True
+            oc_next_state, NothingController(comms), "position", comms, rate, debug=True
         )
         self.comms = comms
         self.counter = 0

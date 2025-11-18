@@ -3,6 +3,7 @@ import time
 from abc import ABC, abstractmethod
 from threading import Thread
 from time import sleep
+from typing import Literal
 
 import rclpy
 from rclpy.node import Node
@@ -161,6 +162,15 @@ class ControllerState(MissionState, ABC):
         self,
         oc_next_state: str,
         controller: Controller,
+        input_type: Literal[
+            "position",
+            "velocity",
+            "acceleration",
+            "attitude",
+            "body_rate",
+            "thrust_and_torque",
+            "direct_actuator",
+        ],
         comms: Comms,
         rate: int = 50,
         debug=False,
@@ -170,7 +180,10 @@ class ControllerState(MissionState, ABC):
         self._ctrl = controller
         self.comms = comms
         self._rate = rate
+        self._input_type = input_type
         self._debug = debug
+        self.offboard_retry_counter = 0
+        self.offboard_retry_max = 20
 
         self._scheduler = sched.scheduler(timefunc=time.monotonic, delayfunc=time.sleep)
         self._period = 1 / rate
@@ -179,9 +192,18 @@ class ControllerState(MissionState, ABC):
         self.step = 0
 
     def _ctrl_task(self):
-        obs = self.get_observation()
-        ref = self.get_reference()
-        self._ctrl(ref, obs)
+        # Wrap the controller in the offboard-mode enable logic
+        if self.comms.get_status()["nav"] != VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+            self.comms.offboard_keepalive(self._input_type)
+            self.comms.cmd_offboard_mode()
+            self.offboard_retry_counter += 1
+            if self.offboard_retry_counter > self.offboard_retry_max:
+                raise Exception("Could not enable offboard mode!")
+        else:
+            self.comms.offboard_keepalive(self._input_type)
+            obs = self.get_observation()
+            ref = self.get_reference()
+            self._ctrl(ref, obs)
         if self.is_finished():
             return
         else:
@@ -195,7 +217,7 @@ class ControllerState(MissionState, ABC):
         # Spin off a periodic thread with the controller and wait until it exits
         self._next_time = time.monotonic() + self._period
         self._scheduler.enterabs(self._next_time, 1, self._ctrl_task)
-        self._scheduler.run()
+        self._scheduler.run()  # Waits until no scheduled controller steps are left
 
         # Call the end hook after the controller finished
         self.exit_hook()

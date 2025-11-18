@@ -1,25 +1,21 @@
 from abc import ABC, abstractmethod
 
-import numpy as np
-from numpy import typing as npt
-
 
 class Controller(ABC):
     def __init__(self):
         return
 
     @abstractmethod
-    def __call__(
-        self, reference: npt.NDArray[np.floating], observation: npt.NDArray[np.floating]
-    ) -> npt.NDArray[np.floating]:
+    def __call__(self, reference, observation) -> None:
         """
-        Compute the control input for the drone based on a state observation.
+        Compute the control input for the drone based on a state observation and setpoint/reference.
 
         Args:
-            observation (npt.NDArray[np.float64]): 13D array: [position, velocity, quaternion, angular velocity]
+            reference (numpy float array)
+            observation (numpy float array)
 
-        Returns:
-           (thrust, attitude) : thrust and attitude to send to the drone
+        Returns: None
+
         """
         raise NotImplementedError
 
