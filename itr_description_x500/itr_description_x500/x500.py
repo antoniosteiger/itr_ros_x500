@@ -71,6 +71,8 @@ class QuadcopterParameters:
     I_x: float
     I_y: float
     I_z: float
+    c_d: float
+    c_t: float
 
 
 class Quadcopter(LTI):
@@ -106,23 +108,6 @@ X500 = QuadcopterParameters(
     I_x=0.018636482,  # Pitch kgm^2
     I_y=0.020027499,  # Roll kgm²
     I_z=0.02788,  # Yaw kgm2
+    c_d=1.7024e-9,  # Drag coefficient
+    c_t=1.1799e-7,  # Lift coefficient
 )
-
-
-@dataclass
-class DoubleIntegratorParameters:
-    k_v: float
-
-
-class DoubleIntegrator(LTI):
-    def __init__(self, params: DoubleIntegratorParameters, d_t: float = 0.01):
-        A = np.zeros((6, 6))
-        A[0:3, 3:6] = np.identity(3)
-
-        B = np.zeros((6, 3))
-        B[3:6, :] = params.k_v * np.identity(3)
-
-        C = np.identity(6)
-        D = np.zeros((6, 6))
-
-        super().__init__(A, B, C, D, d_t)

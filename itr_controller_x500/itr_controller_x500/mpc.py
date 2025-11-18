@@ -16,13 +16,14 @@ class MPC(Controller):
         max_iter: int = 10000,
         debug=False,
     ):
-        super().__init__(debug=debug)
+        super().__init__()
         self.A = Ad
         self.B = Bd
         self.Q = Q
         self.R = R
         self.H = horizon
         self.max_iter = max_iter
+        self.debug = debug
 
         self.dim_x = self.A.shape[1]
         self.dim_u = self.B.shape[1]
@@ -54,11 +55,11 @@ class MPC(Controller):
         self.problem.solve(max_iter=self.max_iter)
 
         if self.debug:
-            print(
+            self._log(
                 f"Status: {self.problem.status} | \
                 Min. Cost: {self.problem.value} | \
                 Opt. u: {self.u.value} | \
                 Opt. x: {self.x.value}"
             )
 
-        return self.u.value
+        return self.u[:, 0].value

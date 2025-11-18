@@ -3,6 +3,16 @@ from typing import Callable, Literal, TypedDict
 import numpy as np
 import numpy.typing as npt
 from nav_msgs.msg import Odometry
+from rclpy.node import Node
+from rclpy.publisher import Publisher
+from rclpy.qos import (
+    QoSDurabilityPolicy,
+    QoSHistoryPolicy,
+    QoSProfile,
+    QoSReliabilityPolicy,
+)
+from rclpy.subscription import Subscription
+
 from px4_msgs.msg import (
     OffboardControlMode,
     TrajectorySetpoint,
@@ -14,15 +24,6 @@ from px4_msgs.msg import (
     VehicleThrustSetpoint,
     VehicleTorqueSetpoint,
 )
-from rclpy.node import Node
-from rclpy.publisher import Publisher
-from rclpy.qos import (
-    QoSDurabilityPolicy,
-    QoSHistoryPolicy,
-    QoSProfile,
-    QoSReliabilityPolicy,
-)
-from rclpy.subscription import Subscription
 
 POSE_TOPIC = "/pose"
 DEFAULT_TAKEOFF_ALTITUDE = 1.5
@@ -336,3 +337,10 @@ class Comms(Node):
         msg.thrust_body = [0.0, 0.0, 0.55]
         msg.q_d = setpoint
         self._pubs["/fmu/in/vehicle_attitude_setpoint"].publish(msg)
+
+    def send_acceleration_setpoint(self, setpoint: npt.NDArray[np.float64]):
+        msg = TrajectorySetpoint()
+        msg.timestamp = self._get_timestamp()
+        msg.acceleration = setpoint
+        msg.yaw = 1.5709  # 90 deg
+        self._pubs["/fmu/in/trajectory_setpoint"].publish(msg)

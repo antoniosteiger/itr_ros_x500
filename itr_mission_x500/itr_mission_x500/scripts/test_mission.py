@@ -20,26 +20,11 @@ class NothingController(Controller):
         return
 
     def __call__(self, ref, obs):
-        # Always send offboard
-
         # The ControllerState in the state machine executes this in a regular interval
         # and ensures the drone is in the offboard mode that enables external setpoints
         # Slowly lower the altitude
-        self.comms.send_position_setpoint(np.array([0.0, 0.0, 0.001 * self.step]))
-
-        # if self.offboard_setpoint_counter == 25:
-        #     # self.comms.send_position_setpoint(np.array([0.0, 0.0, -1.5]))
-        #     # self.comms.cmd_manual_position_mode()
-        #     self.comms.cmd_offboard_mode()
-        # if self.offboard_setpoint_counter == 26:
-        # self.comms.offboard_keepalive("position")
-        # self.comms.send_position_setpoint(self.comms.get_position())
-
-        # if self.comms.get_status()["nav"] == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-        # self.comms.send_position_setpoint(np.array([0.0, 0.0, -0.75]))
-
-        # if self.offboard_setpoint_counter < 41:
-        #     self.offboard_setpoint_counter += 1
+        self.step += 1
+        return np.array([0.0, 0.0, -1.5 + 0.0025 * self.step])
 
 
 class NothingControllerState(ControllerState):
@@ -61,8 +46,13 @@ class NothingControllerState(ControllerState):
         self.counter += 1
         return None
 
+    def apply_input(self, input):
+        self.comms.send_position_setpoint(input)
+        return
+
     def is_finished(self):
-        if self.counter >= self.max:
+        if self.comms.get_position()[2] < 0.05:
+            self._ctrl._log("Controller Finished")
             return True
         else:
             return False

@@ -203,7 +203,8 @@ class ControllerState(MissionState, ABC):
             self.comms.offboard_keepalive(self._input_type)
             obs = self.get_observation()
             ref = self.get_reference()
-            self._ctrl(ref, obs)
+            input = self._ctrl(ref, obs)
+            self.apply_input(input)
         if self.is_finished():
             return
         else:
@@ -235,6 +236,10 @@ class ControllerState(MissionState, ABC):
 
     @abstractmethod
     def get_reference(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def apply_input(self, input):
         raise NotImplementedError
 
     @abstractmethod
