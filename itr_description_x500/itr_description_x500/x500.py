@@ -73,6 +73,9 @@ class QuadcopterParameters:
     I_z: float
     c_d: float
     c_t: float
+    tau_x_max: float
+    tau_y_max: float
+    thrust_max: float
 
 
 class Quadcopter(LTI):
@@ -83,14 +86,14 @@ class Quadcopter(LTI):
         A[0, 3] = 1
         A[1, 4] = 1
         A[2, 5] = 1
-        A[3, 7] = -params.g
-        A[4, 6] = params.g
+        A[3, 7] = params.g
+        A[4, 6] = -params.g
         A[6, 9] = 1
         A[7, 10] = 1
         A[8, 11] = 1
 
         B = np.zeros((12, 4))
-        B[4, 0] = 1 / params.mass
+        B[5, 0] = 1 / params.mass  # To go up, thrust sent to drone needs to be negative
         B[9, 1] = 1 / params.I_x
         B[10, 2] = 1 / params.I_y
         B[11, 3] = 1 / params.I_z
@@ -110,4 +113,7 @@ X500 = QuadcopterParameters(
     I_z=0.02788,  # Yaw kgm2
     c_d=1.7024e-9,  # Drag coefficient
     c_t=1.1799e-7,  # Lift coefficient
+    tau_x_max=2 * 13.4 * 0.2,  # Maximum roll torque
+    tau_y_max=2 * 13.4 * 0.13,  # Maximum pitch torque
+    thrust_max=4 * 13.4,  # Maximum Thrust
 )

@@ -24,7 +24,7 @@ class NothingController(Controller):
         # and ensures the drone is in the offboard mode that enables external setpoints
         # Slowly lower the altitude
         self.step += 1
-        return np.array([0.0, 0.0, -1.5 + 0.0025 * self.step])
+        return np.array([1.0, 0.0, -15.0])
 
 
 class NothingControllerState(ControllerState):
@@ -32,7 +32,12 @@ class NothingControllerState(ControllerState):
         self, oc_next_state: str, comms: Comms, rate: int = 1, max_steps: int = 10
     ):
         super().__init__(
-            oc_next_state, NothingController(comms), "position", comms, rate, debug=True
+            oc_next_state,
+            NothingController(comms),
+            "thrust_and_torque",
+            comms,
+            rate,
+            debug=True,
         )
         self.comms = comms
         self.counter = 0
@@ -47,7 +52,8 @@ class NothingControllerState(ControllerState):
         return None
 
     def apply_input(self, input):
-        self.comms.send_position_setpoint(input)
+        self.comms.send_thrust_setpoint(-0.725)
+        self.comms.send_torque_setpoint([0.0, 0.0, 0.0])
         return
 
     def is_finished(self):

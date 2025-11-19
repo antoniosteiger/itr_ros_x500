@@ -205,12 +205,12 @@ class ControllerState(MissionState, ABC):
             ref = self.get_reference()
             input = self._ctrl(ref, obs)
             self.apply_input(input)
-        if self.is_finished():
-            return
-        else:
-            self.step += 1
-            self._next_time += self._period
-            self._scheduler.enterabs(self._next_time, 1, self._ctrl_task)
+            if self.is_finished():
+                return
+            else:
+                self.step += 1
+        self._next_time += self._period
+        self._scheduler.enterabs(self._next_time, 1, self._ctrl_task)
 
     def task(self):
         # Call the init_hook before the controller starts

@@ -12,6 +12,7 @@ from rclpy.qos import (
     QoSReliabilityPolicy,
 )
 from rclpy.subscription import Subscription
+from scipy.spatial.transform import Rotation as R
 
 from px4_msgs.msg import (
     OffboardControlMode,
@@ -146,8 +147,14 @@ class Comms(Node):
     def get_velocity(self) -> npt.NDArray[np.float64]:
         return self.velocity
 
-    def get_orientation(self) -> npt.NDArray[np.float64]:
+    def get_orientation_quat(self) -> npt.NDArray[np.float64]:
         return self.orientation
+
+    def get_orientation_euler(self) -> npt.NDArray[np.float64]:
+        quat = self.get_orientation_quat()
+        r = R.from_quat(quat)
+        euler = r.as_euler("xyz", degrees=False)
+        return euler
 
     def get_angular_velocity(self) -> npt.NDArray[np.float64]:
         return self.angular_velocity
@@ -300,12 +307,11 @@ class Comms(Node):
         if self.debug:
             self._log("Sent offboard keepalive message.")
 
-    def send_thrust_setpoint(self, setpoint: npt.NDArray[np.float64]):
+    def send_thrust_setpoint(self, setpoint: float):
         msg = VehicleThrustSetpoint()
         msg.timestamp = self._get_timestamp()
         msg.timestamp_sample = self._get_timestamp()
-        setpoint = setpoint / 10
-        msg.xyz = np.array([0.0, 0.0, setpoint])  # TODO: thrust normalization
+        msg.xyz = np.array([0.0, 0.0, setpoint])
         self._pubs["/fmu/in/vehicle_thrust_setpoint"].publish(msg)
 
     def send_torque_setpoint(self, setpoint: npt.NDArray[np.float64]):
