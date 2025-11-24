@@ -121,6 +121,7 @@ class Comms(Node):
         else:
             self.status["arm"] = False
         self.status["checks"] = msg.pre_flight_checks_pass
+        self.status["failsafe"] = msg.failsafe
 
     def _cmd_ack_callback(self, msg: VehicleCommandAck):
         self._cmd_ack_result = msg.result

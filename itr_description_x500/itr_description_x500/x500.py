@@ -76,6 +76,7 @@ class QuadcopterParameters:
     tau_x_max: float
     tau_y_max: float
     thrust_max: float
+    hover_throttle: float
 
 
 class Quadcopter(LTI):
@@ -86,8 +87,8 @@ class Quadcopter(LTI):
         A[0, 3] = 1
         A[1, 4] = 1
         A[2, 5] = 1
-        A[3, 7] = params.g
-        A[4, 6] = -params.g
+        A[3, 7] = -params.g
+        A[4, 6] = params.g
         A[6, 9] = 1
         A[7, 10] = 1
         A[8, 11] = 1
@@ -105,15 +106,18 @@ class Quadcopter(LTI):
 
 
 X500 = QuadcopterParameters(
-    g=9.807232,  # m/s²
-    mass=0.7,  # kg
-    # For Inertia Values see: https://www.mdpi.com/2226-4310/8/11/355
-    I_x=0.018636482,  # Pitch kgm^2
-    I_y=0.020027499,  # Roll kgm²
-    I_z=0.02788,  # Yaw kgm2
+    g=9.807232,  # m/s² (Value for Munich)
+    mass=2.0,  # kg
+    # For experimental inertia values see: https://www.mdpi.com/2226-4310/8/11/355
+    # Values used here are from px4 model repository: https://github.com/PX4/PX4-gazebo-models/blob/main/models/x500_base/model.sdf
+    I_x=0.02166666,  # Pitch kgm^2
+    I_y=0.02166666,  # Roll kgm²
+    I_z=0.04000000,  # Yaw kgm2
+    # c_d and c_t are calculated from a specification table of the x500 motors: https://de.aliexpress.com/item/1005003708521114.html
     c_d=1.7024e-9,  # Drag coefficient
     c_t=1.1799e-7,  # Lift coefficient
     tau_x_max=2 * 13.4 * 0.2,  # Maximum roll torque
     tau_y_max=2 * 13.4 * 0.13,  # Maximum pitch torque
-    thrust_max=4 * 13.4,  # Maximum Thrust
+    thrust_max=27.062,  # (-9.81m/s^2*2kg)/-0.725
+    hover_throttle=0.725,
 )

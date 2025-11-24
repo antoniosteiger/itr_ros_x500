@@ -76,7 +76,9 @@ class MPC(Controller):
         self.y.value = observation
         self.r.value = reference
 
-        self.problem.solve(solver=self.solver, max_iter=self.max_iter)
+        self.problem.solve(
+            solver=self.solver, max_iter=self.max_iter, warm_starting=True
+        )
 
         if self.debug:
             self._log(

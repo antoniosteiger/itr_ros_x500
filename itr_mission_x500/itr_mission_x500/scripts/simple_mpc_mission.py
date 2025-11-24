@@ -21,7 +21,7 @@ def null_trajectory(length: int):
         [
             [0.0],
             [0.0],
-            [-1.8],
+            [-0.5],
             [0.0],
             [0.0],
             [0.0],
@@ -71,6 +71,7 @@ class MPC_State(ControllerState):
 
     def get_observation(self):
         pos = self.comms.get_position()  # From Mocap, needs sign adjustment for z coord
+        pos[1] = -1 * pos[1]
         pos[2] = -1 * pos[2]
         vel = self.comms.get_velocity()  # From PX4, does not need sign adjustment
         # vel[2] = -1 * vel[2]
@@ -97,19 +98,28 @@ class MPC_State(ControllerState):
         return section
 
     def apply_input(self, input):
-        # Normalize thrust and send. IMPORTANT: negative thrust means up
-        thrust_normalized = -HOVER_THROTTLE - input[0] / X500.thrust_max
-        self.comms.send_thrust_setpoint(thrust_normalized)
-        # Normalize torques and send
+        # The thrust the MPC outputs is a delta from hover thrust.
+        # Furthermore, due to the NED frame convention, all upwards thrust is actually negative
+        thrust = -X500.g * X500.mass + input[0]
+        thrust_normalized = thrust / abs(
+            X500.thrust_max
+        )  # Normalize the thrust to between -1.0 and 0.0
+        thrust_bounded = max(
+            -1.0, min(thrust_normalized, 0.0)
+        )  # Make sure it does not exceed the bounds
+
         torques_normalized = [input[1] / X500.tau_x_max, input[2] / X500.tau_y_max, 0.0]
+        # torques_normalized = [0.0, 0.0, 0.0]
+
         self.comms.send_torque_setpoint(torques_normalized)
+        self.comms.send_thrust_setpoint(thrust_bounded)
 
         if self.debug:
             print(f"Input Sent: {thrust_normalized}, {torques_normalized}")
 
     def is_finished(self):
         # TODO: Handle trajectory end better. (e.g. padding)
-        if self.step >= len(self.trajectory[1]) - self.mpc.H - 1:
+        if self.step >= len(self.trajectory[1]):
             return True
         else:
             return False
@@ -121,15 +131,14 @@ class MPC_State(ControllerState):
 def main() -> None:
     initialize(debug=True)
 
-    rate = 20
-    horizon = 20
+    rate = 50
+    horizon = 10
     comms = make_comms()
 
-    Q = np.zeros((12, 12))
-    Q[0:3, 0:3] = 20 * np.identity(3)
-    R = 0.005 * np.identity(4)  # TODO: dial in weights
+    Q = np.diag([10.0, 10.0, 10.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 5.0, 5.0, 0.0])
+    R = np.diag([0.1, 10.0, 10.0, 10.0])  # TODO: dial in weights
 
-    model = Quadcopter(X500, 1 / rate)
+    model = Quadcopter(X500, 1.0 / rate)
     # Limit pitch and yaw to small-angle assumption (15 degrees or 0.26 rad)
     x_min = np.array(
         [None, None, None, None, None, None, -0.26, -0.26, None, None, None, None]
@@ -140,18 +149,16 @@ def main() -> None:
     # Limit thrust and torques. Disallow yaw torque
     u_min = np.array(  # this contains actually the maximum upwards thrust
         [
-            -(1 - HOVER_THROTTLE) * X500.thrust_max,
+            -(1 - abs(X500.hover_throttle)) * abs(X500.thrust_max),
             -X500.tau_x_max,
             -X500.tau_y_max,
             None,
         ]
     )
-    u_max = np.array(
-        [(HOVER_THROTTLE) * X500.thrust_max, X500.tau_x_max, X500.tau_y_max, None]
-    )
+    u_max = np.array([X500.g * X500.mass, X500.tau_x_max, X500.tau_y_max, None])
     mpc = MPC(
-        model.Ad_sparse,
-        model.Bd_sparse,
+        model.Ad,
+        model.Bd,
         Q,
         R,
         horizon,
@@ -168,7 +175,7 @@ def main() -> None:
     mission.add_state(Takeoff("took off", comms), "TAKEOFF", "took off", "HOVER")
     mission.add_state(Hover("stable", comms, 2), "HOVER", "stable", "MPC")
     mission.add_state(
-        MPC_State(OC_MISSION_FINISHED, mpc, comms, trajectory, rate=50, debug=True),
+        MPC_State(OC_MISSION_FINISHED, mpc, comms, trajectory, rate=rate, debug=True),
         "MPC",
         OC_MISSION_FINISHED,
         OC_MISSION_FINISHED,

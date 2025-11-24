@@ -1,5 +1,6 @@
 import sched
 import time
+import traceback
 from abc import ABC, abstractmethod
 from threading import Thread
 from time import sleep
@@ -48,6 +49,7 @@ class MissionState(State):
             return outcome
         except Exception as e:
             log(f"\033[31mException in mission state, switching to safe state!\n{e}")
+            traceback.print_exc()
             return OC_MISSION_ABORTED
 
     def task(self):
@@ -193,12 +195,18 @@ class ControllerState(MissionState, ABC):
 
     def _ctrl_task(self):
         # Wrap the controller in the offboard-mode enable logic
-        if self.comms.get_status()["nav"] != VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+        if (
+            self.comms.get_status()["nav"] != VehicleStatus.NAVIGATION_STATE_OFFBOARD
+            and not self.comms.get_status()["failsafe"]
+        ):
             self.comms.offboard_keepalive(self._input_type)
             self.comms.cmd_offboard_mode()
             self.offboard_retry_counter += 1
             if self.offboard_retry_counter > self.offboard_retry_max:
                 raise Exception("Could not enable offboard mode!")
+        elif self.comms.get_status()["failsafe"]:
+            # TODO: Test this code path.
+            raise Exception("Failsafe triggered!")
         else:
             self.comms.offboard_keepalive(self._input_type)
             obs = self.get_observation()
