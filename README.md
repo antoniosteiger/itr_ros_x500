@@ -1,8 +1,40 @@
 # ITR ROS2 Workspace for x500 Drone
+![Screenshot of setup](docs/images/screenshot.png)
 
-This is a ROS2 Workspace for quadcopter control developed to be used through docker, a cross-platform containerization engine. This should allow using this repository on almost any operating system (with some modifications). 
+This is a modern ROS2 Workspace for control research with the HolyBro x500v2 quadcopter. \
+For an overview of the high-level architecture, refer to [this chapter](##Architecture-Overview) down below.
 
-## How to Install:
+**Features**:
+- Cross platform, Ubuntu not needed (Docker containerization; Only tested on Arch so far)
+  - Self-documenting: To understand the setup, check out the [dockerfile](docker/Dockerfile) and the [docker-compose.yml](docker-compose.yml) file
+  - Enables Exchanging Linux kernel for real-time version such as on [CachyOS](https://wiki.cachyos.org/features/kernel/)
+  - Optimize & modify network stack
+- State machine using [YASMIN](https://github.com/uleroboticsgroup/yasmin)
+  - Real-time visualization of state machine
+  - Convenience states provided: Arm, Liftoff, Hover, SafeState, ControllerState
+- Mission system:
+  - Create custom missions by adding states, add custom states
+  - Automatic safe-state fallback on mission errors
+- Physics simulation with visualization using Gazebo
+- PX4 flight controller of the drone runs as part of simulation in a software-in-the-loop configuration
+- Indoor configuration: Motion capture and itr lab geofencing (+- 2m in all directions)
+- Comprehensive communication library for PX4 flight controller (enable offboard mode and more)
+- ROS2:
+  - Very up to date: ROS Jazzy
+  - ROS2 DDS middleware using: [ros_gz_bridge](https://gazebosim.org/docs/latest/ros2_integration/) for Gazebo and [MicroXRCEAgent](https://docs.px4.io/main/en/middleware/uxrce_dds) for PX4
+  - Use all native ros tools: rosbag, rostopic, ...
+
+**Current Status and TODOs**:
+- NOT USED FOR REAL FLIGHT TESTING YET and under active development
+- Currently implementing System Level Synthesis with the [Clarabel Solver](https://clarabel.org/stable/)
+- Need to implement ingestion of motion capture data into ROS2 network
+- Planned: Exchange DDS Middleware for [Zenoh](https://zenoh.io/)
+- Implement better example & testing scripts
+- Decouple from real-time for faster sims
+- Need to implement velocity and angle limiting
+
+
+## Installation
 1. Install Docker and Docker-Compose: \
 on Arch: `sudo pacman -S docker docker-compose` \
 on Ubuntu: `sudo apt install docker docker-compose` \
@@ -15,38 +47,48 @@ on other Operating Systems: Refer to [Docker Documentation](https://docs.docker.
 ✔ base         Built        
 ✔ dev          Built\
 ✔ gcs          Built\
-✔ itr-agent    Built\
-✔ itr-control  Built\
-✔ itr-real     Built\
-✔ itr-world    Built\
-✔ itr-world    Built
-5. Give docker containers the permission to open windows on the host computer:\
-`xhost +local:root`
-6. You can persist this rule by adding it to your shell startup script (example for bash):\
-`echo 'xhost +local:root >/dev/null 2>&1' >> ~/.bashrc`
+✔ px4          Built\
+✔ world        Built\
+✔ fsm          Built\
+
 
 ## How to Use:
 ### Simulation:
-To start a simulation, three ingredients are needed: An instance of the quadcopter flight software (PX4) running together with a simulated quadcopter in Gazebo (Physics Simulator), a ROS2 translation agent and a ground control station (GCS). When all of these are running, a controller can start commanding the simulated drone using ROS2.
+To start, simply run the start script:
+`./start.sh`
+You can look at [the script](start.sh) to understand what it does. NOTE: This runs `xhost +local:root` for you, implement a workaround if you are uncomfortable with this. This is needed so that Docker can open windows for you on your machine.\
+Three windows will open: Gazebo simulation, YASMIN state machine viewer, QGroundControl and a bash shell attached to a dev container. As soon as these are open and working, you can run controllers and scripts from the dev container. Remember to source the necessary environment and install additional ros packages you are experimenting with yourself:
+```
+cd /itr_ros_x500
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+rosdep install --from-paths src --ignore-src --rosdistro jazzy -y
+colcon build --symlink-install
+```
+You can find more commands like these in the dockerfiles of this project. There are example missions in itr_mission_x500/itr_mission_x500/scripts. You can start a test mission from the dev container shell:
+`python3 itr_mission_x500/itr_mission_x500/scripts/test_mission.py`
 
-Start PX4 and the Simulator with: `docker compose up -d itr-world`\
-Start the ROS2 bridge with: `docker compose up -d itr-agent`\
-Start the ground control station with: `docker compose up -d itr-gcs`
+To restart any container, such as PX4, run:
+`docker compose restart px4`
 
-Now you can start a ROS2 based controller that uses px4_msgs nessage definitions to retrieve measurements and send actuator commands.
+To attach a shell to a running container (e.g. px4) for debugging/development purposes run:
+`docker compose exec -it px4 bash`
 
 ### Real Deployment:
-TBD.
+WORK IN PROGRESS!
 
-## How to Develop:
-The "dev" container image can be used to develop ROS2 applications in a containerized context. It copies over the contents of this repository in their current state. This allows running ROS2 commands and applications on non-Ubuntu machines, e.g.\
-First, start the container in detached mode:
 
-`docker compose up -d dev`
+## Development:
+You can use VSCode with the Dev Container extension to attach to/start an instance of the Dev container. To start writing your own missions and custom states, check out the example scripts like [test_mission.py](itr_mission_x500/itr_mission_x500/scripts/test_mission.py) or [simple_mpc_mission.py](itr_mission_x500/itr_mission_x500/scripts/simple_mpc_mission.py) (Not stable at the moment). Generally, you would create your own mission by adding ready-made states like arm and takeoff and a custom controller state. Your controller state implements the base ControllerState from the statemachine package in itr_statemachine_x500.
 
-Then attach a shell and start developing:
 
-`docker compose exec -it dev bash`
+## Architecture Overview
+### Simulation:
+![Simulation Architecture](docs/images/simulation_architecture.png)
+
+### Experiments:
+![Experiment Architecture](docs/images/experiment_architecture.png)
+
 
 ## Repository Structure:
 - itr_controller_x500: ROS2 workspace for actual drone controller implementations (e.g. trajectory tracking)
@@ -58,8 +100,8 @@ Then attach a shell and start developing:
 - itr_px4_x500: PX4 & PX4 ROS bridge launch script + ROS translation script for PX4 inputs
 - docker: Base Dockerfile describing ROS2 image used for everything
 
-## Sources
 
+## Sources
 - Repository Structure: https://roboticseabass.com/2023/07/09/updated-guide-docker-and-ros2/
 - Repository Structure: https://github.com/sea-bass/turtlebot3_behavior_demos
 - Repository Structure: https://github.com/ros-navigation/nav2_minimal_turtlebot_simulation
