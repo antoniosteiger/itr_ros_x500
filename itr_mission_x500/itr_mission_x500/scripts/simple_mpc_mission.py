@@ -1,5 +1,6 @@
 import numpy as np
 import numpy.typing as npt
+from scipy.linalg import solve_discrete_are
 
 from itr_comms_x500 import Comms
 from itr_controller_x500 import MPC
@@ -131,12 +132,12 @@ class MPC_State(ControllerState):
 def main() -> None:
     initialize(debug=True)
 
-    rate = 50
-    horizon = 10
+    rate = 60
+    horizon = 15
     comms = make_comms()
 
-    Q = np.diag([10.0, 10.0, 10.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 5.0, 5.0, 0.0])
-    R = np.diag([0.1, 10.0, 10.0, 10.0])  # TODO: dial in weights
+    Q = np.diag([7.0, 7.0, 10.0, 1.0, 1.0, 1.0, 0.8, 0.8, 0.5, 4.0, 4.0, 0.5])
+    R = np.diag([0.1, 0.5, 0.5, 0.5])  # TODO: dial in weights
 
     model = Quadcopter(X500, 1.0 / rate)
     # Limit pitch and yaw to small-angle assumption (15 degrees or 0.26 rad)
@@ -156,17 +157,20 @@ def main() -> None:
         ]
     )
     u_max = np.array([X500.g * X500.mass, X500.tau_x_max, X500.tau_y_max, None])
+    P = solve_discrete_are(model.Ad, model.Bd, Q, R)  # Riccati
     mpc = MPC(
         model.Ad,
         model.Bd,
         Q,
         R,
-        horizon,
+        P=[],
+        horizon=horizon,
         x_min=x_min,
         x_max=x_max,
         u_min=u_min,
         u_max=u_max,
         debug=True,
+        max_iter=800,
     )
     trajectory = null_trajectory(2000)
 
