@@ -13,7 +13,8 @@ from yasmin import (
     Blackboard,
     State,
     StateMachine,
-    logs,
+    set_log_level,
+    LogLevel
 )
 from yasmin_ros import set_ros_loggers
 from yasmin_viewer import YasminViewerPub
@@ -159,7 +160,7 @@ class Hover(MissionState):
             return OC_MISSION_ABORTED
 
 
-class ControllerState(MissionState, ABC):
+class ControllerState(MissionState):
     def __init__(
         self,
         oc_next_state: str,
@@ -274,8 +275,8 @@ class FSM(Node):
         )
 
         set_ros_loggers()
-        logs.set_log_level(1)
-        YasminViewerPub("ITR_X500", self.sm)
+        set_log_level(LogLevel.WARN)
+        YasminViewerPub(self.sm, "ITR_X500")
 
     def start(self):
         try:

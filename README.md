@@ -39,17 +39,25 @@ For an overview of the high-level architecture, refer to [this chapter](##Archit
 on Arch: `sudo pacman -S docker docker-compose` \
 on Ubuntu: `sudo apt install docker docker-compose` \
 on other Operating Systems: Refer to [Docker Documentation](https://docs.docker.com/engine/install/) and [Docker-Compose Documentation](https://docs.docker.com/compose/install/). 
+2. Check additional requirements:
+  - X11 display server or Xwayland (on Linux)
+  - Firewall allows multicast in local network and allows all the ports used by PX4, QGroundControl and Gazebo (given on most Linux distributions)
 2. Clone this git repository: `git clone https://github.com/antoniosteiger/itr_ros_x500.git`
-3. Build the docker images:\
+3. Add a `.env` file to the project root specifying the software versions you want (the following are recommended and tested):
+```
+ROS_DISTRO=jazzy
+PX4_VERSION=1.16.0
+```
+4. Build the docker images:\
 `cd itr_ros_x500` \
 `docker-compose build`
-4. A successful installation is denoted by:\
+5. A successful installation is denoted by:\
 ✔ base         Built        
 ✔ dev          Built\
 ✔ gcs          Built\
 ✔ px4          Built\
 ✔ world        Built\
-✔ fsm          Built\
+✔ fsm          Built
 
 
 ## How to Use:

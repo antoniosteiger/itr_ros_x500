@@ -105,10 +105,10 @@ services:
       "-c", 
       "MicroXRCEAgent udp4 -p 8888 \
       & PX4_GZ_STANDALONE=1 PX4_SYS_AUTOSTART=1868 ./build/px4_sitl_default/bin/px4 \
-      & PX4_PID=$!; sleep 10; \
+      & PX4_PID=$$!; sleep 10; \
       cd ./build/px4_sitl_default/bin; \
       ./px4-commander set_ekf_origin 0 0 0 || echo 'Failed to set EKF origin'; \
-      wait $PX4_PID"
+      wait $$PX4_PID"
     ]
 
   ## Start World (Gazebo Physics Sim GUI) with ROS bridge

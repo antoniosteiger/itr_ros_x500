@@ -154,10 +154,9 @@ FROM overlay AS dev
 
 WORKDIR /itr_ros_x500
 # Utility Packages:
-COPY ./itr_sim_x500/ ./src/itr_sim_x500/
 COPY ./itr_mocap_x500/ ./src/itr_mocap_x500/
 COPY ./itr_description_x500/ ./src/itr_description_x500/
-COPY ./itr_px4_x500/ ./src/itr_px4_x500/
+COPY ./itr_comms_x500 ./src/itr_comms_x500/
 # Main Packages:
 COPY ./itr_controller_x500/ ./src/itr_controller_x500/
 COPY ./itr_statemachine_x500/ ./src/itr_statemachine_x500/
