@@ -1,5 +1,5 @@
 # Full set of configurations
-- ros_topic_name: "/pose"
+- ros_topic_name: "/gz/pose"
   gz_topic_name: "/model/x500_itr_0/odometry_with_covariance"
   ros_type_name: "nav_msgs/msg/Odometry"
   gz_type_name: "gz.msgs.OdometryWithCovariance"
@@ -10,3 +10,19 @@
                             # "GZ_TO_ROS" - Bridge Gz topic to ROS
                             # "ROS_TO_GZ" - Bridge ROS topic to Gz
   #qos_profile: SENSOR_DATA  # Default is a default-constructed QoS with appropriate queue size
+
+# Bridge the sim start/stop service
+# Can then be used like this: ros2 service call /world/itr/control ros_gz_interfaces/srv/ControlWorld "{world_control: {pause: false}}"
+- service_name: "/world/itr/control"
+  ros_type_name: "ros_gz_interfaces/srv/ControlWorld"
+  gz_req_type_name: "gz.msgs.WorldControl"
+  gz_rep_type_name: "gz.msgs.Boolean"
+
+
+# Bridge the clock
+- ros_topic_name: "/clock"
+  gz_topic_name: "/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
+
