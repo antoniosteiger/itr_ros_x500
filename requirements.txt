@@ -1,4 +1,4 @@
-PyYAML
 cvxpy
-em
-lark
+matplotlib
+numpy
+networkx

@@ -26,7 +26,7 @@ from px4_msgs.msg import (
     VehicleTorqueSetpoint,
 )
 
-POSE_TOPIC = "/pose"
+POSE_TOPIC = "/gz/pose"
 DEFAULT_TAKEOFF_ALTITUDE = 1.5
 
 QOS_PROFILE_PX4_SUB = QoSProfile(
@@ -105,13 +105,14 @@ class Comms(Node):
         )
 
     def _pose_callback(self, msg: Odometry):
+        # data from Gazebo in FLU
         self.position[0] = msg.pose.pose.position.x
-        self.position[1] = msg.pose.pose.position.y
-        self.position[2] = msg.pose.pose.position.z
+        self.position[1] = -1 * msg.pose.pose.position.y # Convert from FLU (Gazebo) to NED (PX4)
+        self.position[2] = -1 * msg.pose.pose.position.z # Convert from FLU (Gazebo) to NED (PX4)
 
         self.orientation[0] = msg.pose.pose.orientation.x
-        self.orientation[1] = msg.pose.pose.orientation.y
-        self.orientation[2] = msg.pose.pose.orientation.z
+        self.orientation[1] = -1 * msg.pose.pose.orientation.y # Convert from FLU (Gazebo) to NED (PX4)
+        self.orientation[2] = -1 * msg.pose.pose.orientation.z # Convert from FLU (Gazebo) to NED (PX4)
         self.orientation[3] = msg.pose.pose.orientation.w
 
     def _status_callback(self, msg: VehicleStatus):
@@ -143,22 +144,23 @@ class Comms(Node):
         self.angular_velocity[2] = msg.angular_velocity[2]
 
     def get_position(self) -> npt.NDArray[np.float64]:
-        return self.position
+        return self.position.copy()
 
     def get_velocity(self) -> npt.NDArray[np.float64]:
-        return self.velocity
+        return self.velocity.copy()
 
     def get_orientation_quat(self) -> npt.NDArray[np.float64]:
-        return self.orientation
+        return self.orientation.copy()
 
     def get_orientation_euler(self) -> npt.NDArray[np.float64]:
         quat = self.get_orientation_quat()
+
         r = R.from_quat(quat)
         euler = r.as_euler("xyz", degrees=False)
         return euler
 
     def get_angular_velocity(self) -> npt.NDArray[np.float64]:
-        return self.angular_velocity
+        return self.angular_velocity.copy()
 
     def get_status(self) -> Status:
         return self.status

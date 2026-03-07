@@ -1,5 +1,6 @@
 import numpy as np
 import numpy.typing as npt
+import cvxpy as cp
 from scipy.linalg import solve_discrete_are
 
 from itr_comms_x500 import Comms
@@ -170,7 +171,8 @@ def main() -> None:
         u_min=u_min,
         u_max=u_max,
         debug=True,
-        max_iter=800,
+        max_iter=1000,
+        solver=cp.CLARABEL
     )
     trajectory = null_trajectory(2000)
 

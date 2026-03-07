@@ -1,4 +1,6 @@
 shell.nix
+.pip-packages/
+data/
 
 archive/
 .colcon/
@@ -19,7 +21,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/

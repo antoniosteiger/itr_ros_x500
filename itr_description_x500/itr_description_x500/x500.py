@@ -80,7 +80,7 @@ class QuadcopterParameters:
 
 
 class Quadcopter(LTI):
-    def __init__(self, params: QuadcopterParameters, d_t: float = 0.01):
+    def __init__(self, params: QuadcopterParameters, d_t: float = 0.01, d_method="zoh"):
         # For Matrix Definitions see: https://arxiv.org/pdf/1908.07401
 
         A = np.zeros((12, 12))
@@ -102,7 +102,7 @@ class Quadcopter(LTI):
         C = np.identity(12)
         D = np.zeros((12, 4))
 
-        super().__init__(A, B, C, D, d_t)
+        super().__init__(A, B, C, D, d_t, d_method=d_method)
 
 
 X500 = QuadcopterParameters(

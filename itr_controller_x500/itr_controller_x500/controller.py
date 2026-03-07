@@ -19,15 +19,27 @@ class Controller(ABC):
         """
         raise NotImplementedError
 
-    # @abstractmethod
-    # def is_finished(self) -> bool:
+    @abstractmethod
+    def is_finished(self) -> bool:
     #     """
     #     Callback function to be called once after one control step.
 
     #     Returns:
     #         bool: a flag to signal if the controller has finished
     #     """
-    #     raise NotImplementedError
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_reference(self):
+        return
+
+    @abstractmethod
+    def get_observation(self):
+        return
+
+    @abstractmethod
+    def apply_input(self):
+        return
 
     def _log(self, msg: str):
         print(f"\033[32m[ITR_CONTROL]: {msg} \033[0m")

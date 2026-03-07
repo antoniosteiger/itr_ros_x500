@@ -15,6 +15,7 @@ For an overview of the high-level architecture, refer to [this chapter](##Archit
 - Mission system:
   - Create custom missions by adding states, add custom states
   - Automatic safe-state fallback on mission errors
+  - Interrupt signal handler: Return to safe state on Ctrl+C
 - Physics simulation with visualization using Gazebo
 - PX4 flight controller of the drone runs as part of simulation in a software-in-the-loop configuration
 - Indoor configuration: Motion capture and itr lab geofencing (+- 2m in all directions)
@@ -26,12 +27,13 @@ For an overview of the high-level architecture, refer to [this chapter](##Archit
 
 **Current Status and TODOs**:
 - NOT USED FOR REAL FLIGHT TESTING YET and under active development
-- Currently implementing System Level Synthesis with the [Clarabel Solver](https://clarabel.org/stable/)
+- System Level Synthesis (SLS) is implemented but does not perform. The main for this is itr_mission_x500/sls/ros2_main.py.
+- For the core library for SLS refer to [https://github.com/antoniosteiger/SLS](https://github.com/antoniosteiger/SLS)
 - Need to implement ingestion of motion capture data into ROS2 network
 - Planned: Exchange DDS Middleware for [Zenoh](https://zenoh.io/)
 - Implement better example & testing scripts
-- Decouple from real-time for faster sims
-- Need to implement velocity and angle limiting
+- It is possible to start and stop the Gazebo simulation via the GazeboControlNode implemented in itr_mission_x500/mission.py, but it is not decoupled from realtime yet.
+- Need to implement proper extraction of Gazebo sim data for plotting
 
 
 ## Installation

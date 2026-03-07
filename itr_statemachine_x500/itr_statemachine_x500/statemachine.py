@@ -1,3 +1,4 @@
+import numpy as np
 import sched
 import time
 import traceback
@@ -35,8 +36,6 @@ ST_MISSION = "MISSION"
 ST_SAFE = "SAFE STATE"
 
 
-def log(msg: str):
-    print(f"\033[34m[ITR_STATEMACHINE]: {msg} \033[0m")
 
 
 class MissionState(State):
@@ -49,12 +48,15 @@ class MissionState(State):
             outcome = self.task()
             return outcome
         except Exception as e:
-            log(f"\033[31mException in mission state, switching to safe state!\n{e}")
+            self._log(f"\033[31mException in mission state, switching to safe state!\n{e}")
             traceback.print_exc()
             return OC_MISSION_ABORTED
 
     def task(self):
         raise NotImplementedError
+
+    def _log(self, msg: str):
+        print(f"\033[34m[ITR_STATEMACHINE]: {msg} \033[0m")
 
 
 class Mission(StateMachine):
@@ -89,12 +91,15 @@ class SafeState(State):
         self.comms.cmd_rtl()
         if not self.exit_flag:
             self.exit_flag = True
-            log("Starting Statemachine.")
+            self._log("Starting Statemachine.")
             sleep(2)
             return OC_START
         else:
-            log("Reached end, exiting state machine.")
+            self._log("Reached end, exiting state machine.")
             return OC_END
+
+    def _log(self, msg: str):
+        print(f"\033[34m[ITR_STATEMACHINE]: {msg} \033[0m")
 
 
 class Arm(MissionState):
@@ -110,7 +115,7 @@ class Arm(MissionState):
         self.comms.cmd_arm()
         sleep(2)
         if self.comms.get_status()["arm"]:
-            log("Vehicle armed!")
+            self._log("Vehicle armed!")
             return self.oc_next_state
         else:
             YASMIN_LOG_ERROR("Vehicle could not be armed.")
@@ -138,7 +143,7 @@ class Takeoff(MissionState):
                 YASMIN_LOG_ERROR("Could not complete takeoff!")
                 return OC_MISSION_ABORTED
 
-        log("Takeoff Completed.")
+        self._log("Takeoff Completed.")
         return self.oc_next_state
 
 
@@ -152,7 +157,7 @@ class Hover(MissionState):
         self.comms.cmd_hold()
 
         if self.comms.cmd_is_success():
-            log(f"Hovering for {self.hovertime_s}")
+            self._log(f"Hovering for {self.hovertime_s}")
             sleep(self.hovertime_s)
             return self.oc_next_state
         else:
@@ -160,11 +165,14 @@ class Hover(MissionState):
             return OC_MISSION_ABORTED
 
 
-class ControllerState(MissionState):
+class RealtimeControllerState(MissionState):
     def __init__(
         self,
         oc_next_state: str,
+        comms: Comms,
         controller: Controller,
+        Tsim: int,
+        Tstep: float,
         input_type: Literal[
             "position",
             "velocity",
@@ -173,65 +181,102 @@ class ControllerState(MissionState):
             "body_rate",
             "thrust_and_torque",
             "direct_actuator",
-        ],
-        comms: Comms,
-        rate: int = 50,
+        ] = "thrust_and_torque",
+        hover_throttle=0.725,
         debug=False,
     ):
         super().__init__(oc_next_state)
 
         self._ctrl = controller
         self.comms = comms
-        self._rate = rate
+        self._Tsim = Tsim
+        self._Tstep = Tstep
         self._input_type = input_type
         self._debug = debug
         self.offboard_retry_counter = 0
         self.offboard_retry_max = 20
+        self.hover_throttle = hover_throttle
+        
+        # Thread control variables
+        self._offboard_thread = None
+        self._stop_offboard = False
+        self._offboard_active = False
 
         self._scheduler = sched.scheduler(timefunc=time.monotonic, delayfunc=time.sleep)
-        self._period = 1 / rate
+        self._period = self._Tstep
 
         self._next_time = time.monotonic() + self._period
         self.step = 0
 
-    def _ctrl_task(self):
-        # Wrap the controller in the offboard-mode enable logic
-        if (
-            self.comms.get_status()["nav"] != VehicleStatus.NAVIGATION_STATE_OFFBOARD
-            and not self.comms.get_status()["failsafe"]
-        ):
+    def _offboard_keepalive_thread(self):
+        """Background thread to maintain offboard mode and send zero setpoints when needed."""
+        while not self._stop_offboard:
+            # Send offboard keepalive sequence
             self.comms.offboard_keepalive(self._input_type)
             self.comms.cmd_offboard_mode()
-            self.offboard_retry_counter += 1
-            if self.offboard_retry_counter > self.offboard_retry_max:
-                raise Exception("Could not enable offboard mode!")
-        elif self.comms.get_status()["failsafe"]:
-            # TODO: Test this code path.
-            raise Exception("Failsafe triggered!")
-        else:
             self.comms.offboard_keepalive(self._input_type)
-            obs = self.get_observation()
-            ref = self.get_reference()
-            input = self._ctrl(ref, obs)
-            self.apply_input(input)
-            if self.is_finished():
-                return
+
+            # Check navigation mode
+            nav_mode = self.comms.get_status()["nav"]
+
+            if nav_mode == 14:
+                # Offboard mode active - controller will handle setpoints
+                self._offboard_active = True
             else:
-                self.step += 1
-        self._next_time += self._period
-        self._scheduler.enterabs(self._next_time, 1, self._ctrl_task)
+                # Not in offboard yet - send zero setpoint to hover
+                self.comms.send_torque_setpoint(np.array([0.0, 0.0, 0.0]))
+                self.comms.send_thrust_setpoint(self.hover_throttle)
+
+            time.sleep(0.1)  # Run at ~10Hz
 
     def task(self):
-        # Call the init_hook before the controller starts
-        self.init_hook()
+        # Start offboard keepalive thread
+        self._log("Starting offboard keepalive thread")
+        self._stop_offboard = False
+        self._offboard_thread = Thread(target=self._offboard_keepalive_thread, daemon=True)
+        self._offboard_thread.start()
+
+        # Wait for offboard mode to activate
+        self._log("Waiting for offboard mode activation")
+        while not self._offboard_active:
+            time.sleep(0.05)
+
+        self._log("Offboard mode active, starting controller")
+
         # Spin off a periodic thread with the controller and wait until it exits
         self._next_time = time.monotonic() + self._period
         self._scheduler.enterabs(self._next_time, 1, self._ctrl_task)
         self._scheduler.run()  # Waits until no scheduled controller steps are left
 
-        # Call the end hook after the controller finished
-        self.exit_hook()
+        # Stop offboard thread
+        self._stop_offboard = True
+        if self._offboard_thread:
+            self._offboard_thread.join(timeout=1.0)
+
         return self.oc_next_state
+
+    def _ctrl_task(self):
+        obs = self._ctrl.get_observation()
+        ref = self._ctrl.get_reference()
+        input = self._ctrl(ref, obs)
+        self._ctrl.apply_input(input)
+
+        if self._debug:
+            self._log(f"Observation: {obs}")
+            self._log(f"Reference: {ref}")
+            self._log(f"Control Input: {input}")
+
+        if self._ctrl.is_finished():
+            return
+        else:
+            self.step += 1
+
+        self._next_time += self._period
+
+        if self.step >= self._Tsim:
+            return
+
+        self._scheduler.enterabs(self._next_time, 1, self._ctrl_task)
 
     def init_hook(self):
         return
@@ -239,21 +284,147 @@ class ControllerState(MissionState):
     def exit_hook(self):
         return
 
-    @abstractmethod
-    def get_observation(self):
-        raise NotImplementedError
+    def _log(self, msg: str):
+        print(f"\033[34m[ITR_CONTROLLER]: {msg} \033[0m")
 
-    @abstractmethod
-    def get_reference(self):
-        raise NotImplementedError
 
-    @abstractmethod
-    def apply_input(self, input):
-        raise NotImplementedError
+# We will not use the ControllerState here, because it is real-time and periodic (real-time)
+# We instead wrap the MissionState to add a more sim focused mission state
+class SimControllerState(MissionState):
+    def __init__(
+        self,
+        oc_next_state: str,
+        comms: Comms,
+        sim, # Gazebo Control Node
+        controller: Controller,
+        Tsim: int,
+        Tstep: float,
+        hover_throttle: float = 0.72,
+        debug: bool = False,
+    ):
+        """
+        """
+        super().__init__(oc_next_state)
 
-    @abstractmethod
-    def is_finished(self):
-        raise NotImplementedError
+        self.comms = comms
+        self.sim = sim
+        self.controller = controller
+        self._debug = debug
+        self._input_type = "thrust_and_torque"
+        self.hover_throttle = hover_throttle
+
+        self.Tstep = Tstep
+        self.Tsim = Tsim
+        self.step = 0
+
+        # Thread control variables
+        self._offboard_thread = None
+        self._stop_offboard = False
+        self._offboard_active = False
+
+    def _offboard_keepalive_thread(self):
+        """Background thread to maintain offboard mode and send zero setpoints when needed."""
+        while not self._stop_offboard:
+            # Send offboard keepalive sequence
+            self.comms.offboard_keepalive(self._input_type)
+            self.comms.cmd_offboard_mode()
+            self.comms.offboard_keepalive(self._input_type)
+
+            # Check navigation mode
+            nav_mode = self.comms.get_status()["nav"]
+
+            if nav_mode == 14:
+                # Offboard mode active - controller will handle setpoints
+                self._offboard_active = True
+            else:
+                # Not in offboard yet - send zero setpoint to hover
+                self.comms.send_torque_setpoint(np.array([0.0, 0.0, 0.0]))
+                self.comms.send_thrust_setpoint(self.hover_throttle)
+
+            time.sleep(0.1)  # Run at ~10Hz
+
+    def task(self):
+        # This main task is blocking and is called by the State Machine
+
+        # Start offboard keepalive thread
+        self._log("Starting offboard keepalive thread")
+        self._stop_offboard = False
+        self._offboard_thread = Thread(target=self._offboard_keepalive_thread, daemon=True)
+        self._offboard_thread.start()
+
+        # Wait for offboard mode to activate
+        self._log("Waiting for offboard mode activation")
+        while not self._offboard_active:
+            time.sleep(0.05)
+
+        self._log("Offboard mode active, starting controller")
+
+        # Get starting position and initialize
+        obs = self.controller.get_observation()
+        # self.x_VAL[:, 0] = obs
+
+
+        # Main sim loop
+        for k in range(self.Tsim):
+            self.sim.pause()
+
+            # Compute control input at current state
+            u = self._ctrl_task()
+
+            self.sim.resume()
+
+            # Apply control input at 1ms intervals using timer-based scheduling
+            start_time = time.monotonic()
+            next_time = start_time + 0.001
+            num_substeps = int(self.Tstep / 0.001)
+
+            for _ in range(num_substeps):
+                self.controller.apply_input(u)
+
+                # Sleep until next scheduled time
+                sleep_duration = next_time - time.monotonic()
+                if sleep_duration > 0:
+                    time.sleep(sleep_duration)
+
+                next_time += 0.001
+
+            self.step += 1
+
+        # Stop offboard thread
+        self._stop_offboard = True
+        if self._offboard_thread:
+            self._offboard_thread.join(timeout=1.0)
+
+        return self.oc_next_state
+
+    def _ctrl_task(self):
+        # Wrap the controller in the offboard-mode enable logic
+        # Also wrap in Gazebo simulation start/stop logic
+        # ros2 service call /world/itr/control ros_gz_interfaces/srv/ControlWorld "{world_control: {pause: false}}"
+
+        # Get measurement
+        obs = self.controller.get_observation()
+
+        # Get reference (trajectory)
+        ref = self.controller.get_reference()
+
+        # Compute control input
+        u = self._ctrl(ref, obs)
+
+        if self._debug:
+            self._log(f"Observation: {obs}")
+            self._log(f"Reference: {ref}")
+            self._log(f"Control Input: {u}")
+
+        return u
+
+    def _ctrl(self, ref, obs):
+        u = self.controller(ref, obs)
+
+        return u
+
+    def _log(self, msg: str):
+        print(f"\033[34m[ITR_CONTROLLER]: {msg} \033[0m")
 
 
 class FSM(Node):

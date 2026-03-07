@@ -87,7 +87,7 @@ class MPC(Controller):
         self.r.value = reference
 
         self.problem.solve(
-            solver=self.solver, max_iter=self.max_iter, warm_starting=True
+            solver=self.solver, max_iter=self.max_iter, warm_start=True
         )
 
         if self.debug:

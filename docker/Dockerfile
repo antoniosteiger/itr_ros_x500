@@ -12,7 +12,7 @@ SHELL ["/bin/bash", "-c"]
 
 # Install basic apt packages
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
- sudo curl wget git python3-pip
+ sudo curl wget git python3-pip python3-tk
  # libcanberra-gtk-module libcanberra-gtk3-module fuse3 libfuse2 libqt5svg5-dev \
  # python3-opencv python3-tk python3-pyqt5.qtwebengine
 
