@@ -1,0 +1,54 @@
+docker
+   Dockerfile
+   entrypoint.sh
+docs
+itr_comms_x500
+   itr_comms_x500
+      comms.py
+itr_controller_x500
+   itr_controller_x500
+      controller.py
+      mpc.py
+   resource
+      itr_controller_x500
+itr_description_x500
+   config
+      1868_x500_itr_real
+      1868_x500_itr_sim
+      1868_x500_itr_sim.post
+      ros_gz_bridge_map.yml
+   itr_description_x500
+      x500.py
+   models
+      x500_itr.sdf
+   worlds
+       itr.sdf
+itr_mission_x500
+   config
+      essential_topics.txt
+   itr_mission_x500
+      mission.py
+      scripts
+         simple_mpc_mission.py
+         sls_realtime.py
+         sls_sim.py
+         test_mission.py
+      sls
+          lib
+             SLS core lib
+          ros2_main.py
+          shell.nix
+   launch
+      mission.deploy.py
+      mission.launch.py
+itr_mocap_x500
+   itr_mocap_x500
+      todo
+itr_statemachine_x500
+   itr_statemachine_x500
+      statemachine.py
+README.md
+requirements.txt
+ruff.toml
+start.sh
+docker-compose.yml

@@ -1,4 +1,3 @@
-from .scripts.sim.gz import GazeboControlNode
 import signal
 import sys
 from threading import Thread, Event

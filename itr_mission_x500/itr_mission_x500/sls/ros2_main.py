@@ -1,4 +1,4 @@
-from itr_mission_x500.scripts.sim.gz import GazeboControlNode
+from itr_mission_x500 import GazeboControlNode
 import numpy as np
 import cvxpy as cp
 from lib.sls import SLS, solve_sls_fir
